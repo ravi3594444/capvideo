@@ -1,0 +1,291 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user account profile stored for signed-in Caption Lite creators.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication user UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address of the user.",
+          "minLength": 3,
+          "maxLength": 320
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name shown in the workspace.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Optional profile avatar URL.",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was last updated."
+        }
+      },
+      "required": ["uid", "email", "displayName", "photoURL", "createdAt", "updatedAt"]
+    },
+    "StylePreset": {
+      "title": "StylePreset",
+      "description": "Saved caption style preset created manually or matched from a reference video.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "st-minimal",
+            "st-editorial",
+            "st-cinema",
+            "st-classic",
+            "st-font-switch",
+            "st-font-snap",
+            "st-kinetic-mix",
+            "st-typewriter",
+            "st-hormozi",
+            "st-highlight",
+            "st-pop",
+            "st-cycle",
+            "st-karaoke",
+            "st-bounce",
+            "st-neon"
+          ]
+        },
+        "fontFamily": {
+          "type": "string",
+          "enum": ["manrope", "system", "editorial", "impact", "mono"]
+        },
+        "position": {
+          "type": "string",
+          "enum": ["pos-bottom", "pos-third", "pos-centre"]
+        },
+        "accentColor": {
+          "type": "string",
+          "maxLength": 16,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "fontSize": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "ownerId", "name", "style", "position", "accentColor", "fontSize", "createdAt", "updatedAt"]
+    },
+    "CaptionProject": {
+      "title": "CaptionProject",
+      "description": "A creator video captioning project storing aspect ratio, trim window, style config, and audio clean-up settings.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": ["r916", "r11", "r169"]
+        },
+        "duration": {
+          "type": "number"
+        },
+        "trimStart": {
+          "type": "number"
+        },
+        "trimEnd": {
+          "type": "number"
+        },
+        "language": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "st-minimal",
+            "st-editorial",
+            "st-cinema",
+            "st-classic",
+            "st-font-switch",
+            "st-font-snap",
+            "st-kinetic-mix",
+            "st-typewriter",
+            "st-hormozi",
+            "st-highlight",
+            "st-pop",
+            "st-cycle",
+            "st-karaoke",
+            "st-bounce",
+            "st-neon"
+          ]
+        },
+        "fontFamily": {
+          "type": "string",
+          "enum": ["manrope", "system", "editorial", "impact", "mono"]
+        },
+        "position": {
+          "type": "string",
+          "enum": ["pos-bottom", "pos-third", "pos-centre"]
+        },
+        "accentColor": {
+          "type": "string",
+          "maxLength": 16,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "fontSize": {
+          "type": "number"
+        },
+        "audioCleanEnabled": {
+          "type": "boolean"
+        },
+        "captionsCount": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "title",
+        "aspectRatio",
+        "duration",
+        "trimStart",
+        "trimEnd",
+        "language",
+        "style",
+        "position",
+        "accentColor",
+        "fontSize",
+        "audioCleanEnabled",
+        "captionsCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CaptionItem": {
+      "title": "CaptionItem",
+      "description": "A single timed caption cue belonging to a CaptionProject.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "start": {
+          "type": "number"
+        },
+        "end": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "orderIndex": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "projectId", "ownerId", "start", "end", "text", "orderIndex", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profile document."
+    },
+    "/users/{userId}/presets/{presetId}": {
+      "schema": { "$ref": "#/entities/StylePreset" },
+      "description": "Saved caption style presets owned by the user."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/CaptionProject" },
+      "description": "Caption editing projects owned by authenticated users."
+    },
+    "/projects/{projectId}/captions/{captionId}": {
+      "schema": { "$ref": "#/entities/CaptionItem" },
+      "description": "Timed caption cues belonging to a parent project."
+    }
+  }
+}

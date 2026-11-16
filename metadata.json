@@ -1,0 +1,6 @@
+{
+  "name": "Caption Lite",
+  "description": "Free creator video captioning studio with server-proxied transcription, animated word-by-word styles, audio clean-up, reference style matching, and Firebase project sync.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

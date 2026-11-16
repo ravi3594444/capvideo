@@ -1,0 +1,248 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidAspect(v) {
+      return v is string && v in ['r916', 'r11', 'r169'];
+    }
+
+    function isValidStyle(v) {
+      return v is string && v in [
+        'st-minimal', 'st-editorial', 'st-cinema', 'st-classic',
+        'st-font-switch', 'st-font-snap', 'st-kinetic-mix', 'st-typewriter',
+        'st-hormozi', 'st-highlight', 'st-pop', 'st-cycle', 'st-karaoke', 'st-bounce', 'st-neon'
+      ];
+    }
+
+    function isValidFontFamily(v) {
+      return v is string && v in ['manrope', 'system', 'editorial', 'impact', 'mono'];
+    }
+
+    function isValidPosition(v) {
+      return v is string && v in ['pos-bottom', 'pos-third', 'pos-centre'];
+    }
+
+    function isValidHexColor(v) {
+      return v is string && v.size() == 7 && v.matches('^#[0-9a-fA-F]{6}$');
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 320
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.photoURL is string && data.photoURL.size() <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStylePreset(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'style', 'position', 'accentColor', 'fontSize', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'name', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 64
+        && isValidStyle(data.style)
+        && (!('fontFamily' in data) || isValidFontFamily(data.fontFamily))
+        && isValidPosition(data.position)
+        && isValidHexColor(data.accentColor)
+        && (data.fontSize is int || data.fontSize is float) && data.fontSize >= 12 && data.fontSize <= 48
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCaptionProject(data) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd',
+          'language', 'style', 'position', 'accentColor', 'fontSize',
+          'audioCleanEnabled', 'captionsCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd',
+          'language', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize',
+          'audioCleanEnabled', 'captionsCount', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && isValidAspect(data.aspectRatio)
+        && (data.duration is int || data.duration is float) && data.duration >= 0 && data.duration <= 7200
+        && (data.trimStart is int || data.trimStart is float) && data.trimStart >= 0
+        && (data.trimEnd is int || data.trimEnd is float) && data.trimEnd >= data.trimStart
+        && data.language is string && data.language.size() >= 2 && data.language.size() <= 32
+        && isValidStyle(data.style)
+        && (!('fontFamily' in data) || isValidFontFamily(data.fontFamily))
+        && isValidPosition(data.position)
+        && isValidHexColor(data.accentColor)
+        && (data.fontSize is int || data.fontSize is float) && data.fontSize >= 12 && data.fontSize <= 48
+        && data.audioCleanEnabled is bool
+        && (data.captionsCount is int || data.captionsCount is float) && data.captionsCount >= 0 && data.captionsCount <= 5000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCaptionItem(data) {
+      return data.keys().hasAll(['id', 'projectId', 'ownerId', 'start', 'end', 'text', 'orderIndex', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'projectId', 'ownerId', 'start', 'end', 'text', 'orderIndex', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.projectId)
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && (data.start is int || data.start is float) && data.start >= 0 && data.start <= 7200
+        && (data.end is int || data.end is float) && data.end >= data.start && data.end <= 7200
+        && data.text is string && data.text.size() <= 500
+        && (data.orderIndex is int || data.orderIndex is float) && data.orderIndex >= 0 && data.orderIndex <= 5000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerified() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isVerified()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'updatedAt']);
+      allow delete: if isVerified() && isValidId(userId) && request.auth.uid == userId;
+
+      match /presets/{presetId} {
+        allow get: if isVerified()
+          && isValidId(userId)
+          && isValidId(presetId)
+          && request.auth.uid == userId;
+        allow list: if isVerified()
+          && request.auth.uid == userId
+          && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerified()
+          && isValidId(userId)
+          && isValidId(presetId)
+          && request.auth.uid == userId
+          && isValidStylePreset(incoming())
+          && incoming().id == presetId
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isVerified()
+          && isValidId(userId)
+          && isValidId(presetId)
+          && request.auth.uid == userId
+          && isValidStylePreset(incoming())
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'updatedAt']);
+        allow delete: if isVerified()
+          && isValidId(userId)
+          && isValidId(presetId)
+          && request.auth.uid == userId;
+      }
+    }
+
+    match /projects/{projectId} {
+      allow get: if isVerified()
+        && isValidId(projectId)
+        && (resource == null || resource.data.ownerId == request.auth.uid);
+      allow list: if isVerified()
+        && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified()
+        && isValidId(projectId)
+        && isValidCaptionProject(incoming())
+        && incoming().id == projectId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(projectId)
+        && isValidCaptionProject(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd', 'language', 'audioCleanEnabled', 'captionsCount', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd', 'language', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'audioCleanEnabled', 'captionsCount', 'updatedAt'])
+        );
+      allow delete: if isVerified()
+        && isValidId(projectId)
+        && existing().ownerId == request.auth.uid;
+
+      match /captions/{captionId} {
+        allow get: if isVerified()
+          && isValidId(projectId)
+          && isValidId(captionId)
+          && (resource == null || resource.data.ownerId == request.auth.uid)
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+        allow list: if isVerified()
+          && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerified()
+          && isValidId(projectId)
+          && isValidId(captionId)
+          && isValidCaptionItem(incoming())
+          && incoming().id == captionId
+          && incoming().projectId == projectId
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/projects/$(projectId))
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+        allow update: if isVerified()
+          && isValidId(projectId)
+          && isValidId(captionId)
+          && isValidCaptionItem(incoming())
+          && existing().ownerId == request.auth.uid
+          && incoming().id == existing().id
+          && incoming().projectId == existing().projectId
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid
+          && incoming().diff(existing()).affectedKeys().hasOnly(['start', 'end', 'text', 'orderIndex', 'updatedAt']);
+        allow delete: if isVerified()
+          && isValidId(projectId)
+          && isValidId(captionId)
+          && existing().ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+      }
+    }
+  }
+}

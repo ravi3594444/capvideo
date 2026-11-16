@@ -1,0 +1,1249 @@
+!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Caption Lite</title>
+<style>
+:root{
+  --bg:#f2f2ef; --card:#ffffff; --ink:#161616; --muted:#5c5c58; --line:#dddcd6;
+  --accent:#0f766e; --accent-ink:#fff; --warn-bg:#fef3c7; --warn-ink:#78350f;
+  --danger:#b91c1c; --chip:#e8e8e3; --hl:#fde047;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#101211; --card:#1a1d1c; --ink:#f2f2ef; --muted:#a8aba6; --line:#2e3230;
+    --accent:#2dd4bf; --accent-ink:#06201c; --warn-bg:#3a2e0a; --warn-ink:#fde68a;
+    --danger:#f87171; --chip:#262a28; --hl:#fde047; }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-rounded,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+main{max-width:760px;margin:0 auto;padding:16px 14px 48px}
+h1{font-size:28px;line-height:1.1;margin:6px 0 4px;letter-spacing:-.02em}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);font-size:15px;margin:0 0 16px}
+h2{font-size:17px;margin:0 0 10px;letter-spacing:-.01em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:0 0 14px}
+button,select,input,textarea{font:inherit;color:inherit}
+button{min-height:48px;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--chip);font-weight:600;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;width:100%}
+button.small{min-height:40px;padding:6px 12px;font-size:14px}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.5}
+select,input[type=text],input[type=password],input[type=url],input[type=number],textarea{
+  min-height:48px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);width:100%}
+input[type=color]{width:56px;height:48px;padding:4px;border-radius:10px;border:1px solid var(--line);background:var(--card)}
+input[type=range]{width:100%;height:44px;accent-color:var(--accent)}
+label{font-size:14px;font-weight:700;color:var(--muted);display:block;margin:0 0 6px;text-transform:none}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1 1 140px}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg button{flex:1 1 30%}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.hint{font-size:14px;color:var(--muted);margin:8px 0 0}
+.notice{background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;font-size:14px;margin:10px 0}
+.hidden{display:none!important}
+/* Preview */
+.stage{background:#000;border-radius:12px;margin:0 auto;overflow:hidden;position:relative;width:100%}
+.stage.r916{aspect-ratio:9/16;max-width:340px}
+.stage.r11{aspect-ratio:1/1;max-width:440px}
+.stage.r169{aspect-ratio:16/9;max-width:100%}
+.stage video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.cap-overlay{position:absolute;left:0;right:0;padding:0 14px;text-align:center;pointer-events:none;font-weight:800;line-height:1.25;word-wrap:break-word}
+.cap-overlay.pos-bottom{bottom:6%}
+.cap-overlay.pos-third{bottom:26%}
+.cap-overlay.pos-centre{top:50%;transform:translateY(-50%)}
+.cap-overlay .w{padding:1px 3px;border-radius:4px}
+.st-classic .w{color:#fff;text-shadow:2px 0 0 #000,-2px 0 0 #000,0 2px 0 #000,0 -2px 0 #000,1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000}
+.st-classic .w.on{background:var(--hl);color:#111;text-shadow:none}
+.st-highlight .w{color:#fff;text-shadow:2px 0 0 #000,-2px 0 0 #000,0 2px 0 #000,0 -2px 0 #000}
+.st-highlight .w.on{background:var(--hl);color:#111;text-shadow:none}
+.st-pop .w{text-shadow:2px 2px 0 rgba(0,0,0,.55)}
+.st-pop .w.on{display:inline-block;transform:scale(1.18)}
+.cap-overlay .w{display:inline-block;transition:transform .13s ease,background .13s ease,color .13s ease;cursor:pointer}
+.cap-overlay{pointer-events:auto}
+.st-cycle .w{text-shadow:2px 0 0 #000,-2px 0 0 #000,0 2px 0 #000,0 -2px 0 #000}
+.st-cycle .w.on{transform:scale(1.22) rotate(-2deg)}
+.st-karaoke .w{color:#fff;text-shadow:2px 0 0 #000,-2px 0 0 #000,0 2px 0 #000,0 -2px 0 #000}
+.st-karaoke .w.on{transform:scale(1.14)}
+.st-bounce .w{color:#fff;text-shadow:2px 2px 0 rgba(0,0,0,.6)}
+.st-bounce .w.on{transform:scale(1.38) translateY(-3px) rotate(-2deg)}
+.st-neon .w{text-shadow:0 0 6px currentColor,0 0 14px currentColor,2px 0 0 #000,-2px 0 0 #000,0 2px 0 #000,0 -2px 0 #000}
+.st-neon .w.on{transform:scale(1.2)}
+@media (prefers-reduced-motion: reduce){ .cap-overlay .w{transition:none} }
+.fix-banner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;margin-top:12px;font-size:14px}
+.fix-banner button{flex:0 0 auto;background:var(--card)}
+.edit-bar{border:2px solid var(--accent);border-radius:10px;padding:12px;margin-top:10px;background:var(--card)}
+.edit-bar textarea{min-height:52px}
+.ref-stage{background:#000;border-radius:12px;overflow:hidden;max-width:340px;margin:10px auto 0}
+.ref-stage video{width:100%;display:block;max-height:300px;background:#000}
+.swatch{display:inline-block;width:34px;height:34px;border-radius:8px;border:2px solid var(--line);vertical-align:middle}
+#refCanvas{max-width:100%;border-radius:10px;display:block;margin:10px auto 0;cursor:crosshair;background:#000}
+.transport{display:flex;gap:8px;align-items:center;margin-top:10px}
+.transport button{flex:0 0 auto}
+.transport .time{font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);white-space:nowrap}
+/* Captions list */
+.cap-row{border:1px solid var(--line);border-radius:10px;padding:10px;margin:0 0 8px;background:var(--card)}
+.cap-row.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.cap-row .times{display:flex;gap:8px}
+.cap-row .times>*{flex:1}
+.cap-row textarea{min-height:56px;resize:vertical;margin:8px 0}
+.cap-row .acts{display:flex;gap:8px;flex-wrap:wrap}
+.cap-row .acts button{flex:1;min-width:90px}
+details{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:14px 16px;margin:0 0 14px}
+summary{min-height:48px;display:flex;align-items:center;font-weight:700;cursor:pointer;font-size:16px}
+details .body{padding:0}
+ol.steps{margin:6px 0;padding-left:22px}
+ol.steps li{margin:0 0 6px}
+.status{font-size:14px;font-weight:600;margin:10px 0 0;min-height:20px}
+progress{width:100%;height:10px;accent-color:var(--accent)}
+.ways{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+@media(min-width:640px){.ways{grid-template-columns:1fr 1fr}}
+.way{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--bg)}
+.way h3{font-size:16px;margin:0 0 6px}
+.way .primary{margin-top:10px}
+.audio-box{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:16px;background:var(--bg)}
+.audio-box h3{font-size:16px;margin:0 0 6px}
+.toggle-btn{width:100%}
+.toggle-btn[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.meter{height:8px;background:var(--chip);border-radius:99px;overflow:hidden;margin-top:10px}
+.meter i{display:block;height:100%;width:0;background:var(--accent);transition:width .12s}
+.kbd-live{font-size:15px;background:var(--chip);border-radius:8px;padding:10px 12px;min-height:44px;margin-top:8px}
+footer{color:var(--muted);font-size:14px;text-align:center;padding:8px 0 0}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Caption <span>Lite</span></h1>
+  <p class="sub">Free auto-captions for bloggers and everyday editors, for Reels, Shorts and TikTok. You can use moving, colourful caption styles and match the look of a reference video. You can start straight away, and exported videos come without a watermark. Your video stays on your phone. The only thing that ever leaves it is the audio, and only to the transcription endpoint you set up below, when you press Generate.</p>
+
+  <!-- 1 · VIDEO -->
+  <section class="card" aria-label="Video">
+    <h2>1 · Your video</h2>
+    <label for="fileInput">Pick a video (MP4 or WebM)</label>
+    <input type="file" id="fileInput" accept="video/mp4,video/webm,video/*">
+    <p class="hint" id="fileInfo">Nothing loaded yet. Short clips (under 2 minutes) work best on low-end phones.</p>
+
+    <div class="stage r916 hidden" id="stage">
+      <video id="video" playsinline preload="metadata"></video>
+      <div class="cap-overlay pos-bottom st-highlight" id="overlay" style="font-size:22px"></div>
+    </div>
+    <div class="transport hidden" id="transport">
+      <button id="playBtn" type="button">▶ Play clip</button>
+      <span class="time" id="timeLabel">0.0s / 0.0s</span>
+    </div>
+
+    <div class="fix-banner hidden" id="fixBanner">
+      <span><strong>Heard a word wrong?</strong> Tap any word in the caption on the video to fix it. The fix updates the preview and the export.</span>
+      <button type="button" id="fixActiveBtn">Tap a caption to fix it</button>
+    </div>
+    <div class="edit-bar hidden" id="editBar">
+      <label for="editInput">Fix this caption: type the right words, then save</label>
+      <textarea id="editInput" rows="2"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button type="button" class="primary" id="editSaveBtn" style="width:auto;flex:1">Save fix</button>
+        <button type="button" id="editCancelBtn">Cancel</button>
+      </div>
+      <p class="hint">Tip: you tapped one word, so the whole line is shown. You can fix the spelling in context.</p>
+    </div>
+
+    <div style="margin-top:14px">
+      <label>Frame shape</label>
+      <div class="seg" role="group" aria-label="Aspect ratio">
+        <button type="button" data-aspect="r916" aria-pressed="true">9:16 Vertical</button>
+        <button type="button" data-aspect="r11" aria-pressed="false">1:1 Square</button>
+        <button type="button" data-aspect="r169" aria-pressed="false">16:9 Wide</button>
+      </div>
+      <p class="hint">The video is centre-cropped to fit, never stretched.</p>
+    </div>
+
+    <div style="margin-top:14px">
+      <label>Trim: start <span id="trimStartVal">0.0s</span></label>
+      <input type="range" id="trimStartRange" min="0" max="0" step="0.1" value="0">
+      <div class="row">
+        <div><label for="trimStartNum">Start (seconds)</label><input type="number" id="trimStartNum" min="0" step="0.1" value="0"></div>
+        <div><label for="trimEndNum">End (seconds)</label><input type="number" id="trimEndNum" min="0" step="0.1" value="0"></div>
+      </div>
+      <label style="margin-top:10px">Trim: end <span id="trimEndVal">0.0s</span></label>
+      <input type="range" id="trimEndRange" min="0" max="0" step="0.1" value="0">
+    </div>
+
+    <div class="audio-box" aria-label="Audio improvement">
+      <h3>Sound: Improve audio</h3>
+      <p class="hint" style="margin:0">Light clean-up done in your browser with the Web Audio API. The clean-up uses built-in browser audio processing, and your audio stays on your device while it runs. A high-pass filter cuts low hum and rumble, a noise gate quiets steady background hiss between words, long silences and pauses are hushed down, and a compressor plus gain levels the volume so quiet parts are audible and loud parts don&rsquo;t clip.</p>
+      <button type="button" class="toggle-btn" id="improveAudioBtn" aria-pressed="false" style="margin-top:12px">Improve audio: Off. Tap to turn on</button>
+      <div class="meter" aria-hidden="true"><i id="audioMeter"></i></div>
+      <p class="status" id="audioStatus" role="status">Off. You&rsquo;re hearing the original sound. Turn it on and play the clip to hear the difference.</p>
+      <p class="hint">Applies to the preview and to the burned-in video export. SRT export is text only, so it isn&rsquo;t affected.</p>
+    </div>
+  </section>
+
+  <!-- 2 · CAPTIONS -->
+  <section class="card" aria-label="Captions">
+    <h2>2 · Captions: two ways, pick either</h2>
+    <p class="hint" style="margin:0">Both ways end up in the same caption list below, with the same styles and export. Use one, or mix them: auto-generate first, then type fixes by hand.</p>
+
+    <div class="ways">
+      <div class="way" aria-label="Auto-generate captions">
+        <h3>Auto: generate from the video</h3>
+        <p class="hint" style="margin:0">Upload a video above and press Generate. The app reads the voice <strong>already inside your video file&rsquo;s audio track</strong> and turns it into timed captions. The captions come straight from the audio in your file, so you do not need to speak again, type the words out, use a microphone, or play the clip out loud.</p>
+        <label for="langSelect" style="margin-top:12px">Spoken language in the video</label>
+        <select id="langSelect">
+          <option value="en-US">English</option>
+          <option value="hi-IN">Hindi</option>
+          <option value="hi-IN-hinglish">Hinglish (Hindi + English mix)</option>
+          <option value="es-ES">Spanish</option>
+          <option value="pt-BR">Portuguese</option>
+          <option value="fr-FR">French</option>
+          <option value="de-DE">German</option>
+          <option value="ar-SA">Arabic</option>
+        </select>
+
+        <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+          <label>Transcription service: Deepgram is the default</label>
+          <div class="seg" role="group" aria-label="Transcription preset" style="margin-bottom:10px">
+            <button type="button" id="presetDeepgram" aria-pressed="true">Deepgram (default)</button>
+            <button type="button" id="presetWhisperOpenAI" aria-pressed="false">OpenAI Whisper</button>
+            <button type="button" id="presetWhisperGroq" aria-pressed="false">Groq Whisper</button>
+            <button type="button" id="presetWhisperCustom" aria-pressed="false">Custom</button>
+          </div>
+          <label for="stEndpoint">Transcription endpoint URL</label>
+          <input type="url" id="stEndpoint" value="https://api.deepgram.com/v1/listen">
+          <div class="row" style="margin-top:10px">
+            <div><label for="stModel">Model name</label><input type="text" id="stModel" value="nova-2"></div>
+            <div><label for="stKey">API key</label><input type="password" id="stKey" placeholder="Paste your Deepgram key" autocomplete="off"></div>
+          </div>
+          <p class="hint">Deepgram is the default transcription path. Your key is kept only in this browser, on this phone, and is sent only to Deepgram, as <code>Authorization: Token &lt;key&gt;</code> with the audio from your file. Deepgram returns timed words, and those word timings build your captions. Endpoint and model stay editable. The Whisper presets above are still available as an alternative (they use a Whisper-compatible endpoint with <code>Bearer</code> auth and form upload instead).</p>
+        </div>
+
+        <button class="primary" id="genBtn" type="button">Generate captions from my video</button>
+        <div class="status" id="genStatus" role="status"></div>
+
+        <details style="margin:14px 0 0;padding:12px 14px">
+          <summary style="font-size:14px;min-height:44px">Fallback: free browser listening (weaker)</summary>
+          <div class="body" style="padding-bottom:12px">
+            <div id="srUnsupported" class="notice hidden">
+              <strong>This browser can&rsquo;t listen.</strong> Speech recognition isn&rsquo;t available here (it works in Chrome on Android and desktop). Use the main Generate button above, &ldquo;Type captions&rdquo;, or import an .srt file.
+            </div>
+            <div id="srSupported">
+              <p class="hint" style="margin:0 0 8px">Only if you have no transcription key: the clip plays out loud and the browser&rsquo;s built-in speech recognition listens through the microphone and writes what it hears. It&rsquo;s free but weaker: it needs the speaker audible, misses words in noise, and timings are rough. Keep the speaker clear of your hand.</p>
+              <button type="button" id="fallbackGenBtn" style="width:100%">Use browser listening instead</button>
+              <button class="hidden" id="stopGenBtn" type="button" style="width:100%;margin-top:8px">■ Stop listening</button>
+              <div class="kbd-live hidden" id="liveText" aria-live="polite"></div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="way" aria-label="Type captions">
+        <h3>Type captions</h3>
+        <p class="hint" style="margin:0">You can start typing straight away, even before you load a video. Add a row for each line, type the words, and set its <strong>start</strong> and <strong>end</strong> times in seconds. Edit or delete any row below.</p>
+        <button class="primary" id="addCapBtn" type="button">＋ Add caption</button>
+        <p class="hint">A new row starts at the playhead (or at the end of your last caption) and lasts 2 seconds. Change the times in the row. Then type the words in its box.</p>
+        <button type="button" id="importBtn" style="width:100%;margin-top:10px">Import .srt file instead</button>
+        <input type="file" id="srtInput" accept=".srt,text/plain" class="hidden">
+        <p class="hint">Already have a subtitle file? Import it and edit the rows below.</p>
+      </div>
+    </div>
+
+    <div class="notice" style="margin-top:12px">
+      <strong>Your captions: fix wrong words here.</strong> Speech recognition gets names and spellings wrong sometimes, and typed rows can be edited any time. Tap any caption box below (or tap a word on the video itself) and type the correction. It updates everywhere: preview, .srt and the burned-in export. Every row has Start, End, the words, and Delete.
+    </div>
+
+    <div id="capList" style="margin-top:14px"></div>
+    <p class="hint" id="capEmpty">You have not added any captions yet. Generate them on the left, or tap &ldquo;Add caption&rdquo; under Type captions to write the first one yourself.</p>
+  </section>
+
+  <!-- 3 · STYLE -->
+  <section class="card" aria-label="Caption style">
+    <h2>3 · Caption style</h2>
+    <label>Look</label>
+    <div class="seg" role="group" aria-label="Caption style">
+      <button type="button" data-style="st-classic" aria-pressed="false">Classic</button>
+      <button type="button" data-style="st-highlight" aria-pressed="true">Highlight</button>
+      <button type="button" data-style="st-pop" aria-pressed="false">Pop</button>
+      <button type="button" data-style="st-cycle" aria-pressed="false">Colour Cycle</button>
+      <button type="button" data-style="st-karaoke" aria-pressed="false">Karaoke</button>
+      <button type="button" data-style="st-bounce" aria-pressed="false">Bounce</button>
+      <button type="button" data-style="st-neon" aria-pressed="false">Neon</button>
+    </div>
+    <p class="hint">Classic = white text, black outline. Highlight = the spoken word lights up yellow. Pop = bold coloured words that jump. <strong>Colour Cycle</strong> = every word gets its own colour from a bright palette and the spoken word pops bigger. <strong>Karaoke</strong> = words fill in with colour as they're spoken, like a sing-along. <strong>Bounce</strong> = the spoken word leaps up, larger, in your chosen colour. <strong>Neon</strong> = glowing words, each a different colour, the spoken one swelling. With the dynamic styles, the colours and emphasis keep changing as the words play. The look changes word by word, in the preview and in the export.</p>
+    <div class="row" style="margin-top:12px">
+      <div>
+        <label for="posSelect">Position</label>
+        <select id="posSelect">
+          <option value="pos-bottom">Bottom</option>
+          <option value="pos-third">Lower third</option>
+          <option value="pos-centre">Centre</option>
+        </select>
+      </div>
+      <div>
+        <label for="colorInput">Accent colour (Pop, Bounce, Karaoke)</label>
+        <input type="color" id="colorInput" value="#ffd60a">
+      </div>
+    </div>
+    <label style="margin-top:12px" for="sizeRange">Text size: <span id="sizeVal">22px</span></label>
+    <input type="range" id="sizeRange" min="14" max="38" step="1" value="22">
+  </section>
+
+  <!-- 4 · REFERENCE MATCH -->
+  <section class="card" aria-label="Reference video style match">
+    <h2>4 · Match a reference video (optional)</h2>
+    <p class="hint" style="margin:0 0 10px">Seen a caption look you like? Load that clip here. The app samples a few frames <em>on your phone</em> (nothing is uploaded), finds the caption colours and where the captions sit, and suggests the closest style. It's a first version: it gets the look close, it does not perfectly clone the reference. You can adjust everything afterwards in section 3.</p>
+    <label for="refInput">Pick a reference video (MP4 or WebM)</label>
+    <input type="file" id="refInput" accept="video/mp4,video/webm,video/*">
+    <div class="ref-stage hidden" id="refStage">
+      <video id="refVideo" playsinline preload="metadata" controls></video>
+    </div>
+    <button class="primary hidden" id="refAnalyseBtn" type="button" style="margin-top:12px">Read the reference style</button>
+    <div class="status" id="refStatus" role="status"></div>
+    <div id="refResult" class="hidden" style="margin-top:10px">
+      <p style="margin:0 0 6px;font-size:15px">Detected caption colour: <span class="swatch" id="refSwatch"></span> <strong id="refHex"></strong></p>
+      <p style="margin:0 0 6px;font-size:15px">Caption position: <strong id="refPos"></strong></p>
+      <p style="margin:0 0 10px;font-size:15px">Closest style: <strong id="refStyleName"></strong></p>
+      <button type="button" class="primary" id="refApplyBtn">Apply this look to my video</button>
+    </div>
+    <details style="margin-top:14px;margin-bottom:0">
+      <summary style="font-size:15px">Colour not right? Pick it by hand</summary>
+      <div class="body">
+        <p class="hint" style="margin:0">Pause the reference on a frame where a caption is showing, tap the button to freeze that frame, then tap right on a caption word in the frozen picture. That exact colour becomes your accent colour.</p>
+        <button type="button" id="refFreezeBtn" style="width:100%;margin-top:10px">Freeze this frame</button>
+        <canvas id="refCanvas" class="hidden" width="320" height="180"></canvas>
+        <div class="status" id="refPickStatus" role="status"></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- 5 · EXPORT -->
+  <section class="card" aria-label="Export">
+    <h2>5 · Export</h2>
+    <button class="primary" id="exportVideoBtn" type="button">⬇ Download video with captions burned in</button>
+    <p class="hint">Recorded live on your phone while the clip plays, so it takes as long as the clip. If &ldquo;Improve audio&rdquo; is on in section 1, the exported video uses the cleaned-up sound. The file is <strong>WebM</strong> in most browsers. That is the format your browser records; most apps accept it, and you can convert it free if you need MP4. Keep this tab open while it records.</p>
+    <div class="status" id="exportStatus" role="status"></div>
+    <progress id="exportProg" class="hidden" value="0" max="100"></progress>
+    <div style="height:10px"></div>
+    <button type="button" id="exportSrtBtn" style="width:100%">⬇ Download captions only (.srt)</button>
+    <p class="hint">An .srt file works on YouTube and most editors. Upload it alongside your original video if you don't want captions burned in.</p>
+  </section>
+
+  <!-- AI CLEAN-UP -->
+  <details>
+    <summary>AI clean-up (optional, bring your own key)</summary>
+    <div class="body">
+      <p style="font-size:14px"><strong>Read this first:</strong> Transcription (turning voice into text) is done by Deepgram by default (the transcription service you set in section 2, or a Whisper-compatible endpoint if you switch presets there), not by an LLM. An LLM does <strong>not</strong> transcribe audio. This section&rsquo;s key (Mercury 3) is used <strong>only</strong> on caption text that already exists: fixing punctuation and misheard words, styling captions to be shorter and punchier, and translating them. Only the caption words you already see on this page are sent here, never your video or audio.</p>
+      <label>Quick preset</label>
+      <div class="seg" role="group" aria-label="AI model preset" style="margin-bottom:12px">
+        <button type="button" id="presetMercury">Inception Mercury 3</button>
+        <button type="button" id="presetOpenAI">OpenAI</button>
+        <button type="button" id="presetCustom">Custom endpoint</button>
+      </div>
+      <p class="hint" style="margin:0 0 12px">Mercury 3 preset fills in Inception's OpenAI-compatible endpoint and model name. Both stay editable below, so if your plan names the model differently, just type over it. Then paste your own Inception API key. The key never leaves this browser except to the endpoint you set.</p>
+      <label for="aiEndpoint">Endpoint URL (OpenAI-compatible)</label>
+      <input type="url" id="aiEndpoint" placeholder="https://api.openai.com/v1/chat/completions">
+      <div class="row" style="margin-top:10px">
+        <div><label for="aiModel">Model name</label><input type="text" id="aiModel" placeholder="gpt-4o-mini"></div>
+        <div><label for="aiKey">API key</label><input type="password" id="aiKey" placeholder="sk-…" autocomplete="off"></div>
+      </div>
+      <p class="hint">Saved only in this browser's local storage, on this phone. Sent only to the endpoint you type above. Clear it any time by deleting it here.</p>
+      <div class="row" style="margin-top:10px">
+        <button type="button" id="aiCleanBtn">Clean up captions</button>
+        <button type="button" id="aiStyleBtn">Style captions: short and punchy</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label for="aiLang">Translate captions to</label>
+          <select id="aiLang">
+            <option value="">Pick a language</option>
+            <option>English</option><option>Hindi</option><option>Spanish</option>
+            <option>Portuguese</option><option>French</option><option>German</option><option>Arabic</option>
+          </select>
+        </div>
+      </div>
+      <button type="button" id="aiTranslateBtn" style="width:100%;margin-top:8px">Translate captions</button>
+      <div class="status" id="aiStatus" role="status"></div>
+    </div>
+  </details>
+
+  <!-- HELP -->
+  <details open>
+    <summary>How to use</summary>
+    <div class="body">
+      <ol class="steps">
+        <li><strong>Upload</strong> your clip and pick the frame shape (9:16 for Reels &amp; Shorts).</li>
+        <li><strong>Trim</strong> it with the sliders. Shorts under 60 seconds do best.</li>
+        <li><strong>Get captions: two ways.</strong> <em>Auto:</em> paste your Deepgram key in section 2 once (Deepgram is the default preset), then press &ldquo;Generate captions from my video&rdquo;. The app sends the audio from your file directly to Deepgram and gets timed words back. <em>Type captions:</em> press &ldquo;Add caption&rdquo;, type the words yourself, and set each row&rsquo;s start and end times. Or import an .srt.</li>
+        <li><strong>Fix the words.</strong> The listener will mishear things. That is normal. Tap any word on the video, or any caption box in section 2, and type the correction. It updates the preview, the .srt and the export.</li>
+        <li><strong>Improve the sound (optional).</strong> Turn on &ldquo;Improve audio&rdquo; in section 1 and play the clip to hear the before/after. It applies to the preview and the burned-in export.</li>
+        <li><strong>Pick a style</strong>. Try Colour Cycle, Karaoke, Bounce or Neon for the moving, viral look, or load a reference video in section 4 and match its colours and position.</li>
+        <li><strong>Export</strong> the burned-in video, or the .srt file on its own.</li>
+      </ol>
+      <p style="font-size:14px"><strong>About Improve audio, the honest version:</strong> it is light, in-browser clean-up using the Web Audio API: a high-pass filter for low hum, a noise gate for steady background noise, silences and long pauses hushed down, and volume normalisation (a compressor plus gain) so quiet speech is audible and loud peaks don&rsquo;t clip. It cleans steady background noise and silences well. It is <strong>NOT studio-grade AI denoise</strong>. It won&rsquo;t remove a dog barking, music behind speech, wind gusts, or another person talking, and it doesn&rsquo;t rebuild damaged audio. Your sound stays on your device for this step, and the clean-up runs without downloading an audio model.</p>
+      <p style="font-size:14px"><strong>Who hears what: the transcription paths.</strong> <strong>Default (Deepgram):</strong> the app extracts the audio from your uploaded video file in the browser and sends those audio bytes directly to Deepgram at <code>https://api.deepgram.com/v1/listen</code> with your key as <code>Authorization: Token &lt;key&gt;</code> and the model you set (nova-2 by default). Deepgram returns timed words, and those word timings become your captions. Your Deepgram key never leaves this browser except to Deepgram, and nothing is re-recorded and no microphone is used. <strong>Alternative (Whisper-compatible):</strong> if you pick a Whisper preset in section 2, the audio is sent to that endpoint instead, with that provider&rsquo;s key. <strong>Fallback:</strong> if you use &ldquo;browser listening&rdquo; instead, your phone browser&rsquo;s built-in speech recognition listens through the microphone while the clip plays out loud. It is weaker, and in most browsers that audio goes to the browser maker&rsquo;s servers. Either way, <strong>no LLM ever transcribes your audio</strong>: the optional AI clean-up (your own key, e.g. Inception Mercury 3) still only cleans up, styles or translates finished caption text, and sends caption text only. It never transcribes audio.</p>
+      <p style="font-size:14px"><strong>Honest limits:</strong> the default Deepgram path is only as good as Deepgram&rsquo;s transcription for your audio, and it needs internet and a valid Deepgram key. If Deepgram rejects the key, is down, or blocks browser calls (CORS), Generate will say so and no captions are invented. Files over about 25 MB are re-encoded in the browser to a small 16&nbsp;kHz mono WAV of your trimmed section before sending, because most transcription endpoints cap uploads; if your browser can&rsquo;t decode the file&rsquo;s audio for that, you&rsquo;ll be told to use a shorter clip. Always read through the captions before posting. Names and spellings still come out wrong sometimes, whichever path you used.</p>
+      <p style="font-size:14px"><strong>About reference matching:</strong> it samples colours from a few frames of your reference and guesses where the captions sit and which built-in style is closest. It will <strong>not</strong> perfectly clone a reference video. Different fonts, animations and effects in the original won't be copied exactly. Think of it as a fast starting look you then adjust by hand. If the automatic colour looks wrong, use the "Pick it by hand" option in section 4 and tap a caption word in a frozen frame.</p>
+    </div>
+  </details>
+
+  <footer>Caption Lite · Free to use · Exports come without a watermark · Works offline after loading (AI clean-up and speech recognition may need internet)</footer>
+</main>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var video=$("video"), stage=$("stage"), overlay=$("overlay");
+var captions=[]; // {id,start,end,text}: times in seconds on the ORIGINAL video timeline
+var nextId=1;
+var trimStart=0, trimEnd=0, duration=0;
+var aspect="r916", capStyle="st-highlight", capColor="#ffd60a", exporting=false;
+var PALETTE=["#ffd60a","#ff5d8f","#22d3ee","#a3e635","#fb923c","#c084fc"];
+var editingId=null;
+var refDetected=null; // {hex, pos, style}
+var videoFile=null; // the uploaded File itself, so transcription can read its audio track directly
+
+/* ---------- video load ---------- */
+$("fileInput").addEventListener("change",function(e){
+  var f=e.target.files[0]; if(!f) return;
+  videoFile=f;
+  if(video.src) URL.revokeObjectURL(video.src);
+  video.src=URL.createObjectURL(f);
+  $("fileInfo").textContent=f.name+" · "+(f.size/1048576).toFixed(1)+" MB";
+});
+video.addEventListener("loadedmetadata",function(){
+  duration=video.duration||0; trimStart=0; trimEnd=duration;
+  ["trimStartRange","trimEndRange"].forEach(function(id){var r=$(id);r.max=duration;});
+  $("trimStartRange").value=0; $("trimEndRange").value=duration;
+  $("trimStartNum").value=0; $("trimEndNum").value=duration.toFixed(1);
+  $("trimStartNum").max=duration; $("trimEndNum").max=duration;
+  syncTrimLabels();
+  stage.classList.remove("hidden"); $("transport").classList.remove("hidden"); $("fixBanner").classList.remove("hidden");
+  renderCaps();
+});
+function fmt(t){return (Math.round(t*10)/10).toFixed(1)+"s"}
+function syncTrimLabels(){
+  $("trimStartVal").textContent=fmt(trimStart); $("trimEndVal").textContent=fmt(trimEnd);
+  $("timeLabel").textContent=fmt(Math.max(0,video.currentTime-trimStart))+" / "+fmt(Math.max(0,trimEnd-trimStart));
+}
+function setTrim(which,val){
+  val=parseFloat(val); if(isNaN(val)) return;
+  val=Math.max(0,Math.min(duration,val));
+  if(which==="start"){ trimStart=Math.min(val,trimEnd-0.2); } else { trimEnd=Math.max(val,trimStart+0.2); }
+  $("trimStartRange").value=trimStart; $("trimEndRange").value=trimEnd;
+  $("trimStartNum").value=trimStart.toFixed(1); $("trimEndNum").value=trimEnd.toFixed(1);
+  syncTrimLabels();
+}
+$("trimStartRange").addEventListener("input",function(){setTrim("start",this.value)});
+$("trimEndRange").addEventListener("input",function(){setTrim("end",this.value)});
+$("trimStartNum").addEventListener("change",function(){setTrim("start",this.value)});
+$("trimEndNum").addEventListener("change",function(){setTrim("end",this.value)});
+
+/* ---------- aspect ---------- */
+document.querySelectorAll("[data-aspect]").forEach(function(b){
+  b.addEventListener("click",function(){
+    aspect=b.getAttribute("data-aspect");
+    stage.className="stage "+aspect;
+    document.querySelectorAll("[data-aspect]").forEach(function(x){x.setAttribute("aria-pressed",x===b?"true":"false")});
+  });
+});
+
+/* ---------- playback within trim ---------- */
+$("playBtn").addEventListener("click",function(){
+  if(aCtx&&aCtx.state==="suspended") aCtx.resume();
+  if(video.paused){ if(video.currentTime<trimStart||video.currentTime>=trimEnd-0.05) video.currentTime=trimStart; video.play(); $("playBtn").textContent="⏸ Pause"; }
+  else { video.pause(); $("playBtn").textContent="▶ Play clip"; }
+});
+video.addEventListener("pause",function(){ if(!exporting) $("playBtn").textContent="▶ Play clip"; });
+video.addEventListener("timeupdate",function(){
+  if(video.currentTime>=trimEnd && !video.paused && !exporting){ video.pause(); }
+  syncTrimLabels(); drawOverlay(); markActiveRow();
+});
+video.addEventListener("seeked",function(){ drawOverlay(); });
+
+/* ---------- light audio clean-up (Web Audio API, no models, nothing uploaded) ----------
+   Chain: video -> high-pass (hum) -> gate gain (steady noise + silences) -> compressor
+   (normalisation / limiting) -> makeup gain -> speakers, and -> a stream destination
+   the export can record, so the cleaned sound lands in the exported video too. */
+var improveAudio=false;
+var AC=window.AudioContext||window.webkitAudioContext;
+var aCtx=null,aSrc=null,aHP=null,aGate=null,aComp=null,aMakeup=null,aAnalyser=null,aDest=null,aGateTimer=null,aHold=0;
+function ensureAudioGraph(){
+  if(aCtx) return true;
+  if(!AC){ $("audioStatus").textContent="This browser has no Web Audio API, so clean-up isn't available here. The original sound will be used."; return false; }
+  try{
+    aCtx=new AC();
+    aSrc=aCtx.createMediaElementSource(video);
+    aHP=aCtx.createBiquadFilter(); aHP.type="highpass"; aHP.frequency.value=10; aHP.Q.value=0.7;
+    aGate=aCtx.createGain(); aGate.gain.value=1;
+    aComp=aCtx.createDynamicsCompressor();
+    aComp.threshold.value=0; aComp.knee.value=0; aComp.ratio.value=1; aComp.attack.value=0.003; aComp.release.value=0.25;
+    aMakeup=aCtx.createGain(); aMakeup.gain.value=1;
+    aAnalyser=aCtx.createAnalyser(); aAnalyser.fftSize=512;
+    aDest=aCtx.createMediaStreamDestination();
+    aSrc.connect(aHP); aHP.connect(aGate); aGate.connect(aComp); aComp.connect(aMakeup);
+    aMakeup.connect(aAnalyser); aAnalyser.connect(aCtx.destination);
+    aMakeup.connect(aDest);
+    return true;
+  }catch(e){
+    aCtx=null;
+    $("audioStatus").textContent="Couldn't route the sound through the clean-up in this browser. The original sound will be used.";
+    return false;
+  }
+}
+function applyAudioSettings(){
+  if(!aCtx) return;
+  var t=aCtx.currentTime;
+  if(improveAudio){
+    aHP.frequency.setTargetAtTime(90,t,0.05);            // cut low hum / rumble below speech
+    aComp.threshold.setTargetAtTime(-20,t,0.05);         // normalise: even out loud and quiet parts
+    aComp.knee.setTargetAtTime(18,t,0.05);
+    aComp.ratio.setTargetAtTime(6,t,0.05);               // firm limiting so peaks don't clip
+    aMakeup.gain.setTargetAtTime(1.5,t,0.05);            // lift quiet speech back up
+  }else{
+    aHP.frequency.setTargetAtTime(10,t,0.05);
+    aComp.threshold.setTargetAtTime(0,t,0.05); aComp.ratio.setTargetAtTime(1,t,0.05);
+    aMakeup.gain.setTargetAtTime(1,t,0.05);
+    aGate.gain.setTargetAtTime(1,t,0.03); aHold=0;
+  }
+}
+function startGateLoop(){
+  if(aGateTimer||!aCtx) return;
+  var buf=new Uint8Array(aAnalyser.fftSize);
+  aGateTimer=setInterval(function(){
+    if(!improveAudio||video.paused){ $("audioMeter").style.width="0%"; return; }
+    aAnalyser.getByteTimeDomainData(buf);
+    var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; }
+    var rms=Math.sqrt(sum/buf.length);
+    $("audioMeter").style.width=Math.min(100,Math.round(rms*260))+"%";
+    // Noise gate: below ~-36 dB counts as silence / steady background. Hold briefly so
+    // natural gaps between words don't chop, then hush the gate down; speech opens it fast.
+    if(rms<0.016){ aHold++; if(aHold>=4) aGate.gain.setTargetAtTime(0.12,aCtx.currentTime,0.08); }
+    else { aHold=0; aGate.gain.setTargetAtTime(1,aCtx.currentTime,0.02); }
+  },90);
+}
+$("improveAudioBtn").addEventListener("click",function(){
+  if(!video.src){ $("audioStatus").textContent="Load a video first, then turn this on."; return; }
+  if(!ensureAudioGraph()){ improveAudio=false; this.setAttribute("aria-pressed","false"); this.textContent="Improve audio: Off. Tap to turn on"; return; }
+  improveAudio=!improveAudio;
+  if(aCtx.state==="suspended") aCtx.resume();
+  applyAudioSettings(); startGateLoop();
+  this.setAttribute("aria-pressed",improveAudio?"true":"false");
+  this.textContent=improveAudio?"Improve audio: On. Tap to hear the original":"Improve audio: Off. Tap to turn on";
+  $("audioStatus").textContent=improveAudio
+    ? "On. Hum filtered, steady background noise and silences hushed, volume levelled. Play the clip and toggle off/on to compare. The export will use this cleaned sound."
+    : "Off. You're hearing the original sound again. The export will use the original sound too.";
+});
+
+/* ---------- caption overlay with word highlight ---------- */
+function activeCaption(t){ for(var i=0;i<captions.length;i++){ if(t>=captions[i].start && t<captions[i].end) return captions[i]; } return null; }
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function drawOverlay(){
+  var c=activeCaption(video.currentTime);
+  if(!c){ overlay.innerHTML=""; return; }
+  var words=c.text.trim().split(/\s+/).filter(Boolean);
+  if(!words.length){ overlay.innerHTML=""; return; }
+  var prog=(video.currentTime-c.start)/Math.max(0.1,(c.end-c.start));
+  var on=Math.min(words.length-1,Math.floor(prog*words.length));
+  overlay.innerHTML=words.map(function(w,i){
+    var st="", extra="";
+    if(capStyle==="st-pop"){ st="color:"+(i===on?capColor:"#ffffff"); }
+    else if(capStyle==="st-cycle"){ st="color:"+PALETTE[i%PALETTE.length]; if(i===on) extra="background:#111"; }
+    else if(capStyle==="st-karaoke"){
+      if(i<on) st="color:"+PALETTE[i%PALETTE.length];
+      else if(i===on) st="color:#111;background:"+capColor;
+      else st="color:#ffffff;opacity:.92";
+    }
+    else if(capStyle==="st-bounce"){ st="color:"+(i===on?capColor:"#ffffff"); }
+    else if(capStyle==="st-neon"){ st="color:"+PALETTE[i%PALETTE.length]; }
+    var styleAttr=(st||extra)?' style="'+st+(extra?";"+extra:"")+'"':"";
+    return '<span class="w'+(i===on?" on":"")+'" data-cap="'+c.id+'" data-wi="'+i+'" title="Tap to fix this caption"'+styleAttr+">"+esc(w)+"</span>";
+  }).join(" ");
+}
+function setStyle(name){
+  capStyle=name;
+  overlay.className=overlay.className.replace(/st-\w+/g,"").trim()+" "+name;
+  document.querySelectorAll("[data-style]").forEach(function(x){x.setAttribute("aria-pressed",x.getAttribute("data-style")===name?"true":"false")});
+  drawOverlay();
+}
+document.querySelectorAll("[data-style]").forEach(function(b){
+  b.addEventListener("click",function(){ setStyle(b.getAttribute("data-style")); });
+});
+/* ---------- tap-to-fix: tap a word on the video, or the banner button ---------- */
+function openEditor(cap){
+  if(!cap) return;
+  editingId=cap.id;
+  $("editInput").value=cap.text;
+  $("editBar").classList.remove("hidden");
+  var inp=$("editInput"); inp.focus();
+  try{ inp.setSelectionRange(inp.value.length,inp.value.length); }catch(e){}
+  $("editBar").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+overlay.addEventListener("click",function(e){
+  var t=e.target;
+  if(t && t.getAttribute && t.getAttribute("data-cap")){
+    var cap=null;
+    captions.forEach(function(x){ if(String(x.id)===t.getAttribute("data-cap")) cap=x; });
+    if(cap){ video.pause(); openEditor(cap); }
+  }
+});
+$("fixActiveBtn").addEventListener("click",function(){
+  var cap=activeCaption(video.currentTime)||captions.slice().sort(function(a,b){return a.start-b.start})[0];
+  if(cap){ video.pause(); openEditor(cap); }
+  else { $("genStatus").textContent="No captions yet. Generate or add one first, then tap it to fix it."; document.querySelector('section[aria-label="Captions"]').scrollIntoView({behavior:"smooth"}); }
+});
+$("editSaveBtn").addEventListener("click",function(){
+  var txt=$("editInput").value.trim(); if(!txt) return;
+  captions.forEach(function(x){ if(x.id===editingId) x.text=txt; });
+  editingId=null;
+  $("editBar").classList.add("hidden");
+  renderCaps(); drawOverlay();
+});
+$("editCancelBtn").addEventListener("click",function(){ editingId=null; $("editBar").classList.add("hidden"); });
+$("posSelect").addEventListener("change",function(){
+  overlay.className=overlay.className.replace(/pos-\w+/g,"").trim()+" "+this.value; drawOverlay();
+});
+function setPos(pos){
+  $("posSelect").value=pos;
+  overlay.className=overlay.className.replace(/pos-\w+/g,"").trim()+" "+pos; drawOverlay();
+}
+$("colorInput").addEventListener("input",function(){ capColor=this.value; drawOverlay(); });
+$("sizeRange").addEventListener("input",function(){ overlay.style.fontSize=this.value+"px"; $("sizeVal").textContent=this.value+"px"; });
+
+/* ---------- caption list ---------- */
+function renderCaps(){
+  var list=$("capList"); list.innerHTML="";
+  $("capEmpty").style.display=captions.length?"none":"block";
+  captions.slice().sort(function(a,b){return a.start-b.start}).forEach(function(c){
+    var row=document.createElement("div"); row.className="cap-row"; row.setAttribute("data-id",c.id);
+    row.innerHTML=
+      '<div class="times"><div><label>Start (s)</label><input type="number" step="0.1" min="0" class="cs" value="'+c.start.toFixed(1)+'"></div>'+
+      '<div><label>End (s)</label><input type="number" step="0.1" min="0" class="ce" value="'+c.end.toFixed(1)+'"></div></div>'+
+      '<label style="margin-top:8px">Caption words: type them here, or tap the box later to fix a wrong word</label>'+
+      '<textarea class="ct" rows="2" placeholder="Type the words for this caption…">'+esc(c.text)+'</textarea>'+
+      '<div class="acts"><button type="button" class="small fix">Fix words</button><button type="button" class="small seek">▶ Hear it</button><button type="button" class="small split">Split</button><button type="button" class="small danger del">Delete</button></div>';
+    row.querySelector(".ct").addEventListener("input",function(){ c.text=this.value; drawOverlay(); });
+    row.querySelector(".cs").addEventListener("change",function(){ c.start=Math.max(0,parseFloat(this.value)||0); if(c.end<=c.start)c.end=c.start+0.5; renderCaps(); });
+    row.querySelector(".ce").addEventListener("change",function(){ c.end=Math.max(c.start+0.2,parseFloat(this.value)||c.end); renderCaps(); });
+    row.querySelector(".fix").addEventListener("click",function(){ video.currentTime=c.start; drawOverlay(); openEditor(c); });
+    row.querySelector(".seek").addEventListener("click",function(){ video.currentTime=c.start; video.play(); });
+    row.querySelector(".del").addEventListener("click",function(){ captions=captions.filter(function(x){return x.id!==c.id}); renderCaps(); drawOverlay(); });
+    row.querySelector(".split").addEventListener("click",function(){
+      var words=c.text.trim().split(/\s+/); if(words.length<2){ alert2(row,"Add more words before splitting."); return; }
+      var mid=Math.ceil(words.length/2), tmid=c.start+(c.end-c.start)/2;
+      captions.push({id:nextId++,start:tmid,end:c.end,text:words.slice(mid).join(" ")});
+      c.end=tmid; c.text=words.slice(0,mid).join(" "); renderCaps();
+    });
+    list.appendChild(row);
+  });
+}
+function alert2(row,msg){ var s=document.createElement("p"); s.className="hint"; s.textContent=msg; row.appendChild(s); setTimeout(function(){s.remove()},2500); }
+function markActiveRow(){
+  var c=activeCaption(video.currentTime);
+  document.querySelectorAll(".cap-row").forEach(function(r){ r.classList.toggle("active", c && String(c.id)===r.getAttribute("data-id")); });
+}
+$("addCapBtn").addEventListener("click",function(){
+  var t=(video.src?video.currentTime:0)||trimStart||0;
+  // If the playhead sits inside an existing caption, start the new row right after the last caption instead of overlapping.
+  var lastEnd=captions.length?Math.max.apply(null,captions.map(function(c){return c.end})):0;
+  var inside=captions.some(function(c){return t>=c.start&&t<c.end});
+  if(inside&&lastEnd>t) t=lastEnd;
+  var cap={id:nextId++,start:Math.round(t*10)/10,end:Math.round((t+2)*10)/10,text:""};
+  if(duration) cap.end=Math.min(duration,cap.end);
+  if(cap.end<=cap.start) cap.end=cap.start+0.5;
+  captions.push(cap);
+  renderCaps();
+  var row=document.querySelector('.cap-row[data-id="'+cap.id+'"]');
+  if(row){ row.scrollIntoView({behavior:"smooth",block:"center"}); var ta=row.querySelector(".ct"); if(ta) ta.focus(); }
+  $("genStatus").textContent="";
+});
+
+/* ---------- SRT ---------- */
+function srtTime(t){
+  t=Math.max(0,t); var h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=Math.floor(t%60),ms=Math.round((t%1)*1000);
+  function p(n,l){return String(n).padStart(l,"0")} return p(h,2)+":"+p(m,2)+":"+p(s,2)+","+p(ms,3);
+}
+function buildSrt(){
+  return captions.slice().filter(function(c){return c.text.trim()}).sort(function(a,b){return a.start-b.start}).map(function(c,i){
+    return (i+1)+"\n"+srtTime(c.start-trimStart)+" --> "+srtTime(c.end-trimStart)+"\n"+c.text.trim()+"\n";
+  }).join("\n");
+}
+function download(blob,name){ var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href); a.remove()},800); }
+$("exportSrtBtn").addEventListener("click",function(){
+  if(!captions.some(function(c){return c.text.trim()})){ $("exportStatus").textContent="Add at least one caption with words first. An empty row has nothing to export."; return; }
+  download(new Blob([buildSrt()],{type:"text/plain"}),"captions.srt");
+  $("exportStatus").textContent="Saved captions.srt. Times start from your trim point.";
+});
+$("importBtn").addEventListener("click",function(){ $("srtInput").click(); });
+$("srtInput").addEventListener("change",function(e){
+  var f=e.target.files[0]; if(!f) return;
+  f.text().then(function(txt){
+    var blocks=txt.replace(/\r/g,"").split(/\n\s*\n/), added=0;
+    function pt(s){ var m=s.trim().match(/(\d+):(\d+):(\d+)[,.](\d+)/); return m?(+m[1])*3600+(+m[2])*60+(+m[3])+(+m[4])/1000:0; }
+    blocks.forEach(function(b){
+      var lines=b.split("\n").filter(function(l){return l.trim()});
+      var ti=lines.findIndex(function(l){return l.indexOf("-->")>-1});
+      if(ti<0) return;
+      var parts=lines[ti].split("-->");
+      captions.push({id:nextId++,start:pt(parts[0])+trimStart,end:pt(parts[1])+trimStart,text:lines.slice(ti+1).join(" ")});
+      added++;
+    });
+    renderCaps(); $("genStatus").textContent=added?("Imported "+added+" captions from the .srt file."):"Couldn't read captions from that file.";
+  });
+});
+
+/* ---------- transcription: file audio -> Deepgram (DEFAULT) or Whisper-compatible endpoint ----------
+   The audio is taken from the uploaded file itself. Files up to ~24 MB are sent as-is
+   (Whisper endpoints accept mp4/webm/m4a directly, and timings come back on the full
+   timeline, matching our captions). Bigger files are decoded in the browser and the
+   trimmed section is re-encoded as 16 kHz mono WAV (~32 KB/s), with timings offset
+   back by the trim start. */
+var stIds=["stEndpoint","stModel","stKey"];
+stIds.forEach(function(id){ var v=""; try{v=localStorage.getItem("cl_"+id)||""}catch(e){} if(v) $(id).value=v;
+  $(id).addEventListener("change",function(){ try{localStorage.setItem("cl_"+id,this.value)}catch(e){} }); });
+var stProvider="deepgram";
+try{ var savedProv=localStorage.getItem("cl_stProvider")||""; if(savedProv) stProvider=savedProv; }catch(e){}
+function isDeepgramEndpoint(ep){ return /deepgram\.com/i.test(ep||""); }
+function currentProvider(){
+  var ep=$("stEndpoint").value.trim();
+  if(isDeepgramEndpoint(ep)) return "deepgram";
+  if(ep) return "whisper";
+  return stProvider;
+}
+function markStPresets(activeId){
+  ["presetDeepgram","presetWhisperOpenAI","presetWhisperGroq","presetWhisperCustom"].forEach(function(id){
+    var b=$(id); if(b) b.setAttribute("aria-pressed", id===activeId?"true":"false");
+  });
+}
+function setStPreset(ep,model,msg,provider,activeId){
+  if(ep){ $("stEndpoint").value=ep; try{localStorage.setItem("cl_stEndpoint",ep)}catch(e){} }
+  if(model){ $("stModel").value=model; try{localStorage.setItem("cl_stModel",model)}catch(e){} }
+  if(provider){ stProvider=provider; try{localStorage.setItem("cl_stProvider",provider)}catch(e){} }
+  if(activeId) markStPresets(activeId);
+  // Keep the key placeholder honest about which key is expected
+  if(provider==="deepgram") $("stKey").placeholder="Paste your Deepgram key";
+  else if(provider==="whisper") $("stKey").placeholder="Paste your key";
+  $("genStatus").textContent=msg;
+}
+// On load, reflect the effective provider in the preset buttons (fresh loads default to Deepgram)
+(function(){
+  var ep0=$("stEndpoint").value.trim();
+  if(isDeepgramEndpoint(ep0)){ stProvider="deepgram"; markStPresets("presetDeepgram"); $("stKey").placeholder="Paste your Deepgram key"; }
+  else if(ep0.indexOf("api.openai.com")>-1){ stProvider="whisper"; markStPresets("presetWhisperOpenAI"); }
+  else if(ep0.indexOf("api.groq.com")>-1){ stProvider="whisper"; markStPresets("presetWhisperGroq"); }
+  else if(ep0){ stProvider="whisper"; markStPresets("presetWhisperCustom"); }
+  else { markStPresets("presetDeepgram"); }
+})();
+$("stEndpoint").addEventListener("change",function(){
+  stProvider=currentProvider();
+  try{localStorage.setItem("cl_stProvider",stProvider)}catch(e){}
+  if(isDeepgramEndpoint(this.value)) markStPresets("presetDeepgram");
+});
+$("presetDeepgram").addEventListener("click",function(){
+  setStPreset("https://api.deepgram.com/v1/listen","nova-2","Deepgram preset set (default). Paste your Deepgram API key in the transcription key field, then press Generate. Your key is sent only to Deepgram, as Authorization: Token <key>.","deepgram","presetDeepgram");
+});
+$("presetWhisperOpenAI").addEventListener("click",function(){
+  setStPreset("https://api.openai.com/v1/audio/transcriptions","whisper-1","OpenAI Whisper preset set (alternative, Whisper-compatible). Paste your OpenAI API key in the transcription key field, then press Generate.","whisper","presetWhisperOpenAI");
+});
+$("presetWhisperGroq").addEventListener("click",function(){
+  setStPreset("https://api.groq.com/openai/v1/audio/transcriptions","whisper-large-v3-turbo","Groq Whisper preset set (alternative, fast, Whisper-compatible). Paste your Groq API key in the transcription key field, then press Generate.","whisper","presetWhisperGroq");
+});
+$("presetWhisperCustom").addEventListener("click",function(){
+  markStPresets("presetWhisperCustom");
+  $("genStatus").textContent="Custom: type any transcription endpoint URL and model name above, then paste that provider's key. A deepgram.com endpoint uses Deepgram's format (raw audio body, Token auth); any other endpoint uses the Whisper-compatible format.";
+  $("stEndpoint").focus();
+});
+function stLang(){ var v=$("langSelect").value; return v==="hi-IN-hinglish"?"hi":v.split("-")[0]; }
+function encodeWav(buf){
+  var n=buf.length, ab=new ArrayBuffer(44+n*2), dv=new DataView(ab);
+  function ws(off,s){ for(var i=0;i<s.length;i++) dv.setUint8(off+i,s.charCodeAt(i)); }
+  ws(0,"RIFF"); dv.setUint32(4,36+n*2,true); ws(8,"WAVEfmt "); dv.setUint32(16,16,true);
+  dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,16000,true);
+  dv.setUint32(28,32000,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  ws(36,"data"); dv.setUint32(40,n*2,true);
+  for(var i=0;i<n;i++){ var s=Math.max(-1,Math.min(1,buf[i])); dv.setInt16(44+i*2,s<0?s*0x8000:s*0x7fff,true); }
+  return new Blob([ab],{type:"audio/wav"});
+}
+function extractTrimmedWav(){
+  // Decode the file's audio and render the trimmed range at 16 kHz mono. Resolves {blob, offset}.
+  return videoFile.arrayBuffer().then(function(ab){
+    var tmp=new (window.AudioContext||window.webkitAudioContext)();
+    return tmp.decodeAudioData(ab).then(function(decoded){
+      try{tmp.close()}catch(e){}
+      var len=Math.max(1,Math.round((trimEnd-trimStart)*16000));
+      var off=new OfflineAudioContext(1,len,16000);
+      var src=off.createBufferSource(); src.buffer=decoded; src.connect(off.destination);
+      src.start(0,trimStart,trimEnd-trimStart);
+      return off.startRendering().then(function(rendered){
+        return {blob:encodeWav(rendered.getChannelData(0)),offset:trimStart,name:"audio.wav"};
+      });
+    });
+  });
+}
+function captionsFromWords(words,offset){
+  var out=[], cur=null;
+  words.forEach(function(w){
+    var word=(w.punctuated_word||w.word||w.text||"").trim(); if(!word) return;
+    var s=(+w.start||0)+offset, e=(+w.end||0)+offset;
+    if(s<trimStart-0.05||s>trimEnd+0.05) return;
+    if(!cur||cur.words.length>=5||(s-cur.end)>0.8||(e-cur.start)>3.2){
+      if(cur) out.push(cur);
+      cur={start:s,end:e,words:[word]};
+    } else { cur.words.push(word); cur.end=e; }
+  });
+  if(cur) out.push(cur);
+  return out.map(function(c){return {id:nextId++,start:Math.round(c.start*100)/100,end:Math.round(Math.max(c.end,c.start+0.3)*100)/100,text:c.words.join(" ")};});
+}
+function captionsFromSegments(segs,offset){
+  var out=[];
+  segs.forEach(function(sg){
+    var txt=(sg.text||"").trim(); if(!txt) return;
+    var s=(+sg.start||0)+offset, e=(+sg.end||0)+offset;
+    if(e<=trimStart||s>=trimEnd) return;
+    // Split long segments into ~5-word captions with proportional timings.
+    var words=txt.split(/\s+/), per=Math.max(1,(e-s)/Math.ceil(words.length/5));
+    for(var i=0;i<words.length;i+=5){
+      out.push({id:nextId++,start:Math.round((s+(i/5)*per)*100)/100,end:Math.round(Math.min(e,s+((i/5)+1)*per)*100)/100,text:words.slice(i,i+5).join(" ")});
+    }
+  });
+  return out;
+}
+function captionsFromText(text,offset,spanStart,spanEnd){
+  var words=text.trim().split(/\s+/).filter(Boolean), out=[];
+  var per=Math.max(0.8,(spanEnd-spanStart)/Math.max(1,Math.ceil(words.length/5)));
+  for(var i=0;i<words.length;i+=5){
+    out.push({id:nextId++,start:Math.round((spanStart+(i/5)*per)*100)/100,end:Math.round(Math.min(spanEnd,spanStart+((i/5)+1)*per)*100)/100,text:words.slice(i,i+5).join(" ")});
+  }
+  return out;
+}
+$("genBtn").addEventListener("click",function(){
+  if(!videoFile){ $("genStatus").textContent="Load a video first (section 1)."; return; }
+  var ep=$("stEndpoint").value.trim(), model=$("stModel").value.trim(), key=$("stKey").value.trim();
+  if(!ep||!model){ $("genStatus").textContent="Set the transcription endpoint and model above first, or open the fallback below and use free browser listening."; return; }
+  if(!key){ $("genStatus").textContent="Paste your transcription API key above first (for the default preset, your Deepgram key; it is kept in this browser and sent only to Deepgram). No key? Open the fallback below and use free browser listening, or type captions by hand."; $("stKey").focus(); return; }
+  var btn=$("genBtn"); btn.disabled=true;
+  var prep;
+  if(videoFile.size<=24*1048576){
+    $("genStatus").textContent="Reading the audio from your file…";
+    prep=Promise.resolve({blob:videoFile,offset:0,name:videoFile.name||"video.mp4"});
+  }else{
+    $("genStatus").textContent="Your file is over ~24 MB, so the browser is shrinking its audio to a small WAV of the trimmed section…";
+    prep=extractTrimmedWav().catch(function(){
+      btn.disabled=false;
+      $("genStatus").textContent="Couldn't decode this file's audio in the browser to shrink it, and it's too big to send as-is (most endpoints cap at 25 MB). Trim to a shorter clip or use a smaller file.";
+      return Promise.reject(new Error("decode"));
+    });
+  }
+  prep.then(function(p){
+    var provider=currentProvider();
+    if(provider==="deepgram"){
+      $("genStatus").textContent="Sending the audio to Deepgram… (the audio bytes go only to Deepgram)";
+      // Deepgram's actual format: raw audio bytes as the body, Authorization: Token <key>,
+      // model + options as query parameters, word-level timings in the response.
+      var dgUrl;
+      try{
+        dgUrl=new URL(ep);
+      }catch(err){
+        throw new Error("bad Deepgram endpoint URL");
+      }
+      dgUrl.searchParams.set("model",model||"nova-2");
+      dgUrl.searchParams.set("smart_format","true");
+      dgUrl.searchParams.set("punctuate","true");
+      dgUrl.searchParams.set("utterances","true");
+      var lgDg=stLang(); if(lgDg) dgUrl.searchParams.set("language",lgDg);
+      var ct=(p.blob&&p.blob.type)?p.blob.type:"application/octet-stream";
+      return fetch(dgUrl.toString(),{method:"POST",headers:{"Authorization":"Token "+key,"Content-Type":ct},body:p.blob})
+        .then(function(r){
+          if(!r.ok) return r.text().then(function(t){ throw new Error("HTTP "+r.status+(t?": "+t.slice(0,140):"")); });
+          return r.json();
+        })
+        .then(function(j){ return {j:j,offset:p.offset,provider:"deepgram"}; });
+    }
+    $("genStatus").textContent="Sending the audio to your transcription endpoint… (the video itself stays on your phone)";
+    var fd=new FormData();
+    fd.append("file",p.blob,p.name);
+    fd.append("model",model);
+    fd.append("response_format","verbose_json");
+    fd.append("timestamp_granularities[]","word");
+    fd.append("timestamp_granularities[]","segment");
+    var lg=stLang(); if(lg) fd.append("language",lg);
+    return fetch(ep,{method:"POST",headers:{"Authorization":"Bearer "+key},body:fd})
+      .then(function(r){
+        if(!r.ok) return r.text().then(function(t){ throw new Error("HTTP "+r.status+(t?": "+t.slice(0,140):"")); });
+        return r.json();
+      })
+      .then(function(j){ return {j:j,offset:p.offset,provider:"whisper"}; });
+  }).then(function(res){
+    var j=res.j, made=[];
+    if(res.provider==="deepgram"){
+      var dgWords=null, dgTranscript="", dgUtterances=null;
+      try{
+        var alt=j.results&&j.results.channels&&j.results.channels[0]&&j.results.channels[0].alternatives&&j.results.channels[0].alternatives[0];
+        if(alt){ dgWords=alt.words||null; dgTranscript=alt.transcript||""; }
+        dgUtterances=(j.results&&j.results.utterances)||null;
+      }catch(e){}
+      if(dgWords&&dgWords.length) made=captionsFromWords(dgWords,res.offset);
+      if(!made.length&&dgUtterances&&dgUtterances.length){
+        made=captionsFromSegments(dgUtterances.map(function(u){return {text:u.transcript||"",start:u.start,end:u.end};}),res.offset);
+      }
+      if(!made.length&&dgTranscript) made=captionsFromText(dgTranscript,res.offset,trimStart,trimEnd);
+    }else{
+      if(j.words&&j.words.length) made=captionsFromWords(j.words,res.offset);
+      if(!made.length&&j.segments&&j.segments.length) made=captionsFromSegments(j.segments,res.offset);
+      if(!made.length&&j.text) made=captionsFromText(j.text,res.offset,trimStart,trimEnd);
+    }
+    btn.disabled=false;
+    if(!made.length){
+      $("genStatus").textContent=res.provider==="deepgram"
+        ? "Deepgram replied, but with no timed words the app could use. Check the model (nova-2) supports word timings, or try the fallback below."
+        : "The endpoint replied, but with no timed words the app could use. Check the model supports transcription with timestamps (verbose_json), or try the fallback below.";
+      return;
+    }
+    captions=made; renderCaps(); drawOverlay();
+    $("genStatus").textContent="Done. "+made.length+" captions written from your video's own audio"+(res.provider==="deepgram"?" via Deepgram's timed words":"")+". Read through them and fix any wrong words below.";
+  }).catch(function(e){
+    btn.disabled=false;
+    if(e.message==="decode") return;
+    var prov=currentProvider();
+    $("genStatus").textContent="Transcription failed ("+e.message+"). Check the endpoint, model and key. Some providers also block direct browser calls (CORS); if yours does, "+(prov==="deepgram"?"check your Deepgram key and endpoint, or try a Whisper preset,":"try another Whisper-compatible endpoint,")+" or use the fallback below. No captions were changed.";
+  });
+});
+
+/* ---------- speech recognition (FALLBACK only: mic/speaker loop) ---------- */
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+var recog=null, recogActive=false;
+if(!SR){ $("srUnsupported").classList.remove("hidden"); $("srSupported").classList.add("hidden"); }
+function langCode(){ var v=$("langSelect").value; return v==="hi-IN-hinglish"?"hi-IN":v; }
+$("fallbackGenBtn").addEventListener("click",function(){
+  if(!SR||!video.src){ if(!video.src) $("genStatus").textContent="Load a video first."; return; }
+  captions=[]; renderCaps();
+  recog=new SR(); recog.lang=langCode(); recog.continuous=true; recog.interimResults=true;
+  var startedAt=trimStart, heard=0;
+  video.currentTime=trimStart;
+  recog.onresult=function(ev){
+    var interim="";
+    for(var i=ev.resultIndex;i<ev.results.length;i++){
+      var r=ev.results[i], txt=r[0].transcript.trim(); if(!txt) continue;
+      if(r.isFinal){
+        var now=video.currentTime;
+        var prev=captions.length?captions[captions.length-1].end:startedAt;
+        var st=Math.max(prev, now-Math.min(4,Math.max(1.2,txt.split(/\s+/).length*0.38)));
+        captions.push({id:nextId++,start:st,end:now+0.4,text:txt}); heard++;
+        $("genStatus").textContent="Listening… "+heard+" phrases captured. Keep the clip playing.";
+        renderCaps();
+      } else interim=txt;
+    }
+    var lt=$("liveText"); if(interim){ lt.classList.remove("hidden"); lt.textContent="Hearing: “"+interim+"”"; }
+  };
+  recog.onerror=function(ev){
+    if(ev.error==="not-allowed"){ stopGen("Microphone blocked. Allow mic access (the browser listens to your speaker), or type captions by hand."); }
+    else if(ev.error!=="no-speech"&&ev.error!=="aborted"){ $("genStatus").textContent="Recognition hiccup ("+ev.error+"). Still listening…"; }
+  };
+  recog.onend=function(){ if(recogActive && video.currentTime<trimEnd-0.3 && !video.paused){ try{recog.start()}catch(e){} } };
+  recogActive=true;
+  if(aCtx&&aCtx.state==="suspended") aCtx.resume();
+  $("fallbackGenBtn").classList.add("hidden"); $("stopGenBtn").classList.remove("hidden");
+  $("genStatus").textContent="Fallback listening… the clip is playing out loud; let it run to the end of the trim.";
+  try{ recog.start(); }catch(e){}
+  video.play();
+  var watcher=setInterval(function(){
+    if(!recogActive){ clearInterval(watcher); return; }
+    if(video.currentTime>=trimEnd-0.15||video.ended){ clearInterval(watcher); stopGen("Done. "+captions.length+" captions written. Read through them and fix any wrong words below."); }
+  },300);
+});
+function stopGen(msg){
+  recogActive=false;
+  if(recog){ try{recog.stop()}catch(e){} recog=null; }
+  video.pause();
+  $("fallbackGenBtn").classList.remove("hidden"); $("stopGenBtn").classList.add("hidden");
+  $("liveText").classList.add("hidden");
+  if(msg) $("genStatus").textContent=msg;
+  renderCaps();
+}
+$("stopGenBtn").addEventListener("click",function(){ stopGen("Stopped. "+captions.length+" captions kept."); });
+
+/* ---------- burned-in export (canvas + MediaRecorder) ---------- */
+$("exportVideoBtn").addEventListener("click",function(){
+  if(!video.src){ $("exportStatus").textContent="Load a video first."; return; }
+  if(typeof MediaRecorder==="undefined"){ $("exportStatus").textContent="This browser can't record video. Use the .srt download instead."; return; }
+  var dims={r916:[540,960],r11:[720,720],r169:[960,540]}[aspect];
+  var canvas=document.createElement("canvas"); canvas.width=dims[0]; canvas.height=dims[1];
+  var ctx=canvas.getContext("2d");
+  var mime=["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"].find(function(m){return MediaRecorder.isTypeSupported(m)})||"";
+  var streams=[canvas.captureStream(30)];
+  var usedCleanAudio=false;
+  if(improveAudio&&ensureAudioGraph()){
+    if(aCtx.state==="suspended") aCtx.resume();
+    applyAudioSettings(); startGateLoop();
+    var cleanTracks=aDest.stream.getAudioTracks();
+    if(cleanTracks.length){ streams.push(new MediaStream(cleanTracks)); usedCleanAudio=true; }
+  }
+  if(!usedCleanAudio){
+    try{ var vs=video.captureStream?video.captureStream():video.mozCaptureStream?video.mozCaptureStream():null;
+      if(vs){ var at=vs.getAudioTracks(); if(at.length) streams.push(new MediaStream(at)); } }catch(e){}
+  }
+  var combined=new MediaStream(); streams.forEach(function(s){ s.getTracks().forEach(function(t){ combined.addTrack(t); }); });
+  var rec=new MediaRecorder(combined, mime?{mimeType:mime,videoBitsPerSecond:2500000}:{videoBitsPerSecond:2500000});
+  var chunks=[]; rec.ondataavailable=function(e){ if(e.data.size) chunks.push(e.data); };
+  var fontPx=Math.round(parseInt($("sizeRange").value,10)*(canvas.width/340));
+  function drawFrame(){
+    var vw=video.videoWidth||16, vh=video.videoHeight||9;
+    var scale=Math.max(canvas.width/vw,canvas.height/vh);
+    var w=vw*scale,h=vh*scale;
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(video,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
+    var c=activeCaption(video.currentTime);
+    if(c){
+      var words=c.text.trim().split(/\s+/).filter(Boolean);
+      var prog=(video.currentTime-c.start)/Math.max(0.1,(c.end-c.start));
+      var on=Math.min(words.length-1,Math.floor(prog*words.length));
+      ctx.font="800 "+fontPx+"px system-ui,sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      // simple word-wrap into lines of ~5 words
+      var lines=[]; for(var i=0;i<words.length;i+=5) lines.push(words.slice(i,i+5));
+      var posY=$("posSelect").value==="pos-centre"?canvas.height/2:$("posSelect").value==="pos-third"?canvas.height*0.68:canvas.height-(lines.length*fontPx*1.35)-canvas.height*0.05;
+      lines.forEach(function(line,li){
+        var y=posY+li*fontPx*1.35+fontPx/2;
+        var widths=line.map(function(w){return ctx.measureText(w).width});
+        var total=widths.reduce(function(a,b){return a+b},0)+ (line.length-1)*fontPx*0.32;
+        var x=(canvas.width-total)/2;
+        line.forEach(function(w,wi){
+          var gi=li*5+wi, isOn=gi===on;
+          ctx.textAlign="left";
+          ctx.shadowColor="transparent"; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+          var big=(capStyle==="st-bounce"&&isOn)||(capStyle==="st-pop"&&isOn)||(capStyle==="st-cycle"&&isOn)||(capStyle==="st-neon"&&isOn);
+          var savedFont=ctx.font;
+          if(big) ctx.font="800 "+Math.round(fontPx*1.3)+"px system-ui,sans-serif";
+          function outline(){ ctx.lineWidth=fontPx/7; ctx.strokeStyle="#000"; ctx.shadowColor="#000"; ctx.strokeText(w,x,y); ctx.shadowColor="transparent"; }
+          if(capStyle==="st-pop"){
+            ctx.fillStyle=isOn?capColor:"#ffffff";
+            ctx.shadowColor="rgba(0,0,0,.55)"; ctx.shadowOffsetX=2; ctx.shadowOffsetY=2;
+            ctx.fillText(w,x,y);
+          } else if(capStyle==="st-cycle"){
+            if(isOn){ ctx.fillStyle="#111"; ctx.fillRect(x-4,y-fontPx*0.62,widths[wi]+8,fontPx*1.24); }
+            outline(); ctx.fillStyle=PALETTE[gi%PALETTE.length]; ctx.fillText(w,x,y);
+          } else if(capStyle==="st-karaoke"){
+            if(isOn){ ctx.fillStyle=capColor; ctx.fillRect(x-4,y-fontPx*0.62,widths[wi]+8,fontPx*1.24); ctx.fillStyle="#111"; ctx.fillText(w,x,y); }
+            else if(gi<on){ ctx.fillStyle=PALETTE[gi%PALETTE.length]; outline(); ctx.fillText(w,x,y); }
+            else { ctx.fillStyle="#fff"; outline(); ctx.fillText(w,x,y); }
+          } else if(capStyle==="st-bounce"){
+            ctx.fillStyle=isOn?capColor:"#ffffff";
+            ctx.shadowColor="rgba(0,0,0,.6)"; ctx.shadowOffsetX=2; ctx.shadowOffsetY=2;
+            ctx.fillText(w,x,y);
+          } else if(capStyle==="st-neon"){
+            var nc=PALETTE[gi%PALETTE.length];
+            ctx.lineWidth=fontPx/7; ctx.strokeStyle="#000"; ctx.strokeText(w,x,y);
+            ctx.shadowColor=nc; ctx.shadowBlur=fontPx*0.55;
+            ctx.fillStyle=nc; ctx.fillText(w,x,y); ctx.fillText(w,x,y);
+          } else {
+            if(isOn){ ctx.fillStyle="#fde047"; ctx.fillRect(x-4,y-fontPx*0.62,widths[wi]+8,fontPx*1.24); ctx.fillStyle="#111"; }
+            else { ctx.fillStyle="#fff"; outline(); }
+            ctx.fillText(w,x,y);
+          }
+          ctx.font=savedFont;
+          ctx.shadowColor="transparent"; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+          x+=widths[wi]+fontPx*0.32;
+        });
+      });
+    }
+    var len=trimEnd-trimStart;
+    $("exportProg").value=len>0?Math.min(100,((video.currentTime-trimStart)/len)*100):0;
+    if(!video.paused && !video.ended && video.currentTime<trimEnd) requestAnimationFrame(drawFrame);
+  }
+  rec.onstop=function(){
+    exporting=false; video.pause();
+    $("exportProg").classList.add("hidden");
+    var blob=new Blob(chunks,{type:"video/webm"});
+    download(blob,"caption-lite.webm");
+    $("exportStatus").textContent="Saved caption-lite.webm ("+(blob.size/1048576).toFixed(1)+" MB). WebM format, captions burned in"+(usedCleanAudio?", with the improved (cleaned-up) sound.":".");
+  };
+  exporting=true;
+  $("exportProg").classList.remove("hidden"); $("exportProg").value=0;
+  $("exportStatus").textContent="Recording… the clip is playing through once. Don't switch apps.";
+  video.currentTime=trimStart;
+  video.play().then(function(){ rec.start(250); requestAnimationFrame(drawFrame);
+    var w=setInterval(function(){ if(video.currentTime>=trimEnd-0.1||video.ended){ clearInterval(w); if(rec.state!=="inactive") rec.stop(); } },250);
+  }).catch(function(){ exporting=false; $("exportStatus").textContent="Couldn't start playback. Tap Play once, then try export again."; });
+});
+
+/* ---------- reference video style match (on-device frame sampling) ---------- */
+var refVideo=$("refVideo");
+function rgbHex(r,g,b){ function h(n){return n.toString(16).padStart(2,"0")} return "#"+h(r)+h(g)+h(b); }
+function seekRef(t){
+  return new Promise(function(res){
+    function done(){ refVideo.removeEventListener("seeked",done); res(); }
+    refVideo.addEventListener("seeked",done);
+    try{ refVideo.currentTime=t; }catch(e){ res(); }
+    setTimeout(res,1200);
+  });
+}
+function analyseFrame(ctx2,w,h){
+  // Caption-like pixels: bright or strongly saturated. Captions are usually the brightest, most saturated thing in their band.
+  var bands={top:{n:0,cols:{}},mid:{n:0,cols:{}},bot:{n:0,cols:{}}};
+  var img;
+  try{ img=ctx2.getImageData(0,0,w,h).data; }catch(e){ return null; }
+  for(var y=0;y<h;y+=3){
+    var band=y<h*0.33?bands.top:(y>h*0.66?bands.bot:bands.mid);
+    for(var x=0;x<w;x+=3){
+      var i=(y*w+x)*4, r=img[i], g=img[i+1], b=img[i+2];
+      var mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+      var bright=mx>185, sat=mx-mn>70 && mx>110;
+      if(!bright && !sat) continue;
+      // skip near-greys unless very bright (white captions count)
+      if(!sat && !(mx>225 && mn>190)) continue;
+      var key=(r>>5)+","+(g>>5)+","+(b>>5);
+      band.cols[key]=band.cols[key]||{n:0,r:0,g:0,b:0};
+      band.cols[key].n++; band.cols[key].r+=r; band.cols[key].g+=g; band.cols[key].b+=b;
+      band.n++;
+    }
+  }
+  return bands;
+}
+function topColour(band){
+  var best=null;
+  for(var k in band.cols){ var c=band.cols[k]; if(!best||c.n>best.n) best=c; }
+  if(!best||best.n<12) return null;
+  return {hex:rgbHex(Math.round(best.r/best.n),Math.round(best.g/best.n),Math.round(best.b/best.n)),n:best.n};
+}
+$("refInput").addEventListener("change",function(e){
+  var f=e.target.files[0]; if(!f) return;
+  if(refVideo.src) URL.revokeObjectURL(refVideo.src);
+  refVideo.src=URL.createObjectURL(f);
+  $("refStage").classList.remove("hidden");
+  $("refResult").classList.add("hidden");
+  $("refStatus").textContent="Reference loaded. Now tap “Read the reference style”.";
+  refVideo.addEventListener("loadedmetadata",function(){ $("refAnalyseBtn").classList.remove("hidden"); },{once:true});
+});
+$("refAnalyseBtn").addEventListener("click",function(){
+  if(!refVideo.src){ $("refStatus").textContent="Load a reference video first."; return; }
+  $("refStatus").textContent="Sampling frames on your phone. Nothing is uploaded…";
+  var wasPaused=refVideo.paused; refVideo.pause();
+  var dur=refVideo.duration||0;
+  var times=dur?[dur*0.25,dur*0.5,dur*0.75]:[0.5];
+  var cv=document.createElement("canvas"); cv.width=144; cv.height=Math.max(80,Math.round(144*(refVideo.videoHeight||9)/Math.max(1,refVideo.videoWidth||16)));
+  var cx=cv.getContext("2d",{willReadFrequently:true});
+  var totals={top:0,mid:0,bot:0}, colourVotes={};
+  var chain=Promise.resolve();
+  times.forEach(function(t){
+    chain=chain.then(function(){ return seekRef(t); }).then(function(){
+      cx.drawImage(refVideo,0,0,cv.width,cv.height);
+      var bands=analyseFrame(cx,cv.width,cv.height); if(!bands) return;
+      ["top","mid","bot"].forEach(function(name){
+        totals[name]+=bands[name].n;
+        var tc=topColour(bands[name]);
+        if(tc){ colourVotes[tc.hex]=(colourVotes[tc.hex]||0)+tc.n; }
+      });
+    });
+  });
+  chain.then(function(){
+    var bestHex=null,bestN=0;
+    for(var hx in colourVotes){ if(colourVotes[hx]>bestN){ bestN=colourVotes[hx]; bestHex=hx; } }
+    if(!bestHex){
+      $("refStatus").textContent="Couldn't spot caption colours in those frames. The captions may be too small or the frames too dark. Use “Pick it by hand” below: pause on a captioned frame, freeze it, and tap a caption word.";
+      return;
+    }
+    var pos="pos-bottom", posLabel="Bottom";
+    if(totals.mid>totals.bot && totals.mid>totals.top){ pos="pos-centre"; posLabel="Centre"; }
+    else if(totals.top>totals.bot*1.6){ pos="pos-centre"; posLabel="Centre / upper"; }
+    else if(totals.bot<totals.mid*0.7){ pos="pos-third"; posLabel="Lower third"; }
+    var distinct=Object.keys(colourVotes).length;
+    var style="st-highlight", styleLabel="Highlight";
+    var pr=parseInt(bestHex.slice(1,3),16), pg=parseInt(bestHex.slice(3,5),16), pb=parseInt(bestHex.slice(5,7),16);
+    if(distinct>=3){ style="st-cycle"; styleLabel="Colour Cycle (many colours found)"; }
+    else if(pr>225&&pg>225&&pb>225){ style="st-classic"; styleLabel="Classic (white captions)"; }
+    refDetected={hex:bestHex,pos:pos,style:style};
+    $("refSwatch").style.background=bestHex;
+    $("refHex").textContent=bestHex;
+    $("refPos").textContent=posLabel;
+    $("refStyleName").textContent=styleLabel;
+    $("refResult").classList.remove("hidden");
+    $("refStatus").textContent="Found a look. Tap “Apply this look” to use it. You can still adjust colour, position and style by hand in section 3.";
+    if(wasPaused===false) refVideo.play().catch(function(){});
+  });
+});
+$("refApplyBtn").addEventListener("click",function(){
+  if(!refDetected) return;
+  capColor=refDetected.hex; $("colorInput").value=refDetected.hex;
+  setPos(refDetected.pos);
+  setStyle(refDetected.style);
+  $("refStatus").textContent="Applied: colour "+refDetected.hex+", position and style set. Play your video to see it. Tweak anything in section 3.";
+  document.querySelector('section[aria-label="Caption style"]').scrollIntoView({behavior:"smooth"});
+});
+$("refFreezeBtn").addEventListener("click",function(){
+  if(!refVideo.src){ $("refPickStatus").textContent="Load a reference video first."; return; }
+  var cv=$("refCanvas");
+  var vw=refVideo.videoWidth||320, vh=refVideo.videoHeight||180;
+  var scale=Math.min(1,340/vw);
+  cv.width=Math.round(vw*scale); cv.height=Math.round(vh*scale);
+  cv.getContext("2d").drawImage(refVideo,0,0,cv.width,cv.height);
+  cv.classList.remove("hidden");
+  $("refPickStatus").textContent="Frozen. Now tap right on a caption word in the picture above.";
+});
+$("refCanvas").addEventListener("click",function(e){
+  var cv=$("refCanvas"), rect=cv.getBoundingClientRect();
+  var x=Math.floor((e.clientX-rect.left)*(cv.width/rect.width));
+  var y=Math.floor((e.clientY-rect.top)*(cv.height/rect.height));
+  var d;
+  try{ d=cv.getContext("2d",{willReadFrequently:true}).getImageData(x,y,1,1).data; }catch(err){ $("refPickStatus").textContent="Couldn't read that pixel. Try another spot."; return; }
+  var hex=rgbHex(d[0],d[1],d[2]);
+  capColor=hex; $("colorInput").value=hex; drawOverlay();
+  $("refPickStatus").textContent="Picked "+hex+". Set as your accent colour. Try Pop, Bounce or Karaoke in section 3 to use it.";
+});
+
+/* ---------- AI clean-up (BYOK, text only) ---------- */
+var aiIds=["aiEndpoint","aiModel","aiKey"];
+aiIds.forEach(function(id){ var v=""; try{v=localStorage.getItem("cl_"+id)||""}catch(e){} if(v) $(id).value=v;
+  $(id).addEventListener("change",function(){ try{localStorage.setItem("cl_"+id,this.value)}catch(e){} }); });
+function aiCall(instruction,done){
+  var ep=$("aiEndpoint").value.trim(), model=$("aiModel").value.trim(), key=$("aiKey").value.trim();
+  if(!ep||!model||!key){ $("aiStatus").textContent="Fill in the endpoint, model and your API key first."; return; }
+  if(!captions.length){ $("aiStatus").textContent="There are no captions to work on yet."; return; }
+  $("aiStatus").textContent="Sending caption text only (never audio or video)…";
+  var texts=captions.map(function(c){return c.text});
+  fetch(ep,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+    body:JSON.stringify({model:model,temperature:0.2,messages:[
+      {role:"system",content:"You edit short-video caption text. Reply with ONLY a JSON array of strings, same length and order as the input. No other text."},
+      {role:"user",content:instruction+"\n\nCaptions JSON:\n"+JSON.stringify(texts)}]})})
+  .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+  .then(function(j){
+    var out=j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content||"";
+    var arr=JSON.parse(out.replace(/```json|```/g,"").trim());
+    if(!Array.isArray(arr)||arr.length!==captions.length) throw new Error("bad shape");
+    captions.forEach(function(c,i){ if(typeof arr[i]==="string"&&arr[i].trim()) c.text=arr[i].trim(); });
+    renderCaps(); done();
+  })
+  .catch(function(e){ $("aiStatus").textContent="AI call failed ("+e.message+"). Check the endpoint, model and key. Your captions are unchanged."; });
+}
+$("aiCleanBtn").addEventListener("click",function(){
+  aiCall("Fix punctuation, capitalisation and obvious misheard words in each caption. Keep the same language and roughly the same length. Do not add new information.",function(){ $("aiStatus").textContent="Captions cleaned up. Skim them once before exporting."; });
+});
+$("aiTranslateBtn").addEventListener("click",function(){
+  var lang=$("aiLang").value; if(!lang){ $("aiStatus").textContent="Pick a language to translate into first."; return; }
+  aiCall("Translate each caption into "+lang+". Keep it short and natural for subtitles, same order.",function(){ $("aiStatus").textContent="Captions translated to "+lang+"."; });
+});
+$("aiStyleBtn").addEventListener("click",function(){
+  aiCall("Restyle each caption for short-form video: make it short, punchy and easy to read at a glance, ideally 2 to 5 words per caption, keeping the speaker's meaning and language. Keep strong, emotional words. Do not add hashtags or emojis.",function(){ $("aiStatus").textContent="Captions restyled: short and punchy. Check the timings still feel right, then export."; });
+});
+/* ---------- AI presets ---------- */
+function setPreset(ep,model,msg){
+  if(ep){ $("aiEndpoint").value=ep; try{localStorage.setItem("cl_aiEndpoint",ep)}catch(e){} }
+  if(model){ $("aiModel").value=model; try{localStorage.setItem("cl_aiModel",model)}catch(e){} }
+  $("aiStatus").textContent=msg;
+}
+$("presetMercury").addEventListener("click",function(){
+  setPreset("https://api.inceptionlabs.ai/v1/chat/completions","mercury-3","Inception Mercury 3 preset set. Paste your Inception API key below. Endpoint and model stay editable if your plan names them differently.");
+});
+$("presetOpenAI").addEventListener("click",function(){
+  setPreset("https://api.openai.com/v1/chat/completions","gpt-4o-mini","OpenAI preset set. Paste your OpenAI API key below.");
+});
+$("presetCustom").addEventListener("click",function(){
+  $("aiStatus").textContent="Custom: type any OpenAI-compatible endpoint URL and model name in the fields below, then paste that provider's key.";
+  $("aiEndpoint").focus();
+});
+
+renderCaps();
+})();
+</script>
+</body>
+</html>

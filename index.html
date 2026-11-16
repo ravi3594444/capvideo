@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Caption Lite — Free Video Captioning &amp; Style Studio</title>
+    <meta
+      name="description"
+      content="Caption, style, clean audio, and export watermark-free Reels, Shorts, and TikToks with Deepgram Nova-2, Inception Mercury 3, and Firebase sync."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="alternate" type="text/plain" title="LLMs Context" href="/llms.txt" />
+
+    <!-- OpenGraph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Caption Lite" />
+    <meta property="og:title" content="Caption Lite — Free Video Captioning &amp; Style Studio" />
+    <meta
+      property="og:description"
+      content="Caption, style, clean audio, and export watermark-free Reels, Shorts, and TikToks with Deepgram Nova-2, Inception Mercury 3, and Firebase sync."
+    />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Caption Lite — Free Video Captioning &amp; Style Studio" />
+    <meta
+      name="twitter:description"
+      content="Caption, style, clean audio, and export watermark-free Reels, Shorts, and TikToks with Deepgram Nova-2, Inception Mercury 3, and Firebase sync."
+    />
+
+    <!-- Structured Data (Schema.org JSON-LD: WebApplication + FAQPage) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Caption Lite",
+            "applicationCategory": "MultimediaApplication",
+            "operatingSystem": "All",
+            "description": "Free browser-based creator video captioning studio with server-proxied Deepgram Nova-2 transcription, Inception Mercury 3 refinement, animated word-by-word styles, Web Audio clean-up, reference color matching, and Firebase sync.",
+            "featureList": [
+              "Word-level timestamp transcription via Deepgram Nova-2 server proxy",
+              "AI punctuation cleanup and translation via Inception Mercury 3",
+              "Fifteen animated & minimal caption styles including zero-box normal subtitles and dynamic font-switch presets",
+              "On-device Web Audio API noise gate, high-pass filter, and leveling",
+              "Client-side reference video color and placement matching",
+              "Watermark-free WebM video and SRT subtitle export"
+            ],
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Does Caption Lite add watermarks to exported videos?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Caption Lite renders burned-in animated captions onto an offscreen high-DPI canvas and records your trimmed clip as a clean WebM video or .srt subtitle file without watermarks."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which backend API keys are required when deploying Caption Lite on Vercel?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Set DEEPGRAM_API_KEY for Deepgram Nova-2 audio transcription (/api/transcribe) and INCEPTION_API_KEY for Inception Mercury 3 caption cleanup and translation (/api/captions/refine) as server-only Vercel environment variables."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How are videos larger than 24 MB handled for transcription?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Files over 24 MB are decoded locally in the browser and re-encoded as a compact 16 kHz mono WAV covering your active trim window before calling /api/transcribe, keeping uploads fast within Vercel payload limits."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does Reference Style Matching upload my reference clip?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Reference Style Matching samples frames locally on an in-browser canvas to infer accent color, vertical placement, and matching animation style without uploading video files."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
