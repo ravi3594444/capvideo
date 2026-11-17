@@ -45,6 +45,29 @@ service cloud.firestore {
       return v is string && v in ['pos-bottom', 'pos-third', 'pos-centre'];
     }
 
+    function isValidRevealMode(v) {
+      return v is string && v in ['karaoke', 'build', 'flash', 'pop', 'spotlight'];
+    }
+
+    function isValidEntranceEffect(v) {
+      return v is string && v in [
+        'none', 'fadeIn', 'scaleUp', 'bounce', 'glitch',
+        'typewriter', 'scramble', 'flipUp', 'wave', 'neonPulse', 'maskSlide'
+      ];
+    }
+
+    function isValidWordsPerPage(v) {
+      return v is string && v in ['auto', '2', '3', '4'];
+    }
+
+    function isValidPageLayout(v) {
+      return v is string && v in ['replace', 'stack'];
+    }
+
+    function isValidBlendMode(v) {
+      return v is string && v in ['normal', 'difference'];
+    }
+
     function isValidHexColor(v) {
       return v is string && v.size() == 7 && v.matches('^#[0-9a-fA-F]{6}$');
     }
@@ -63,7 +86,11 @@ service cloud.firestore {
 
     function isValidStylePreset(data) {
       return data.keys().hasAll(['id', 'ownerId', 'name', 'style', 'position', 'accentColor', 'fontSize', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['id', 'ownerId', 'name', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'wordSpacing',
+          'revealMode', 'effect', 'wordsPerPage', 'pageLayout', 'spotlightAuto', 'blendMode',
+          'createdAt', 'updatedAt'
+        ])
         && isValidId(data.id)
         && isValidId(data.ownerId)
         && data.ownerId == request.auth.uid
@@ -73,6 +100,13 @@ service cloud.firestore {
         && isValidPosition(data.position)
         && isValidHexColor(data.accentColor)
         && (data.fontSize is int || data.fontSize is float) && data.fontSize >= 12 && data.fontSize <= 48
+        && (!('wordSpacing' in data) || ((data.wordSpacing is int || data.wordSpacing is float) && data.wordSpacing >= 0.05 && data.wordSpacing <= 1.0))
+        && (!('revealMode' in data) || isValidRevealMode(data.revealMode))
+        && (!('effect' in data) || isValidEntranceEffect(data.effect))
+        && (!('wordsPerPage' in data) || isValidWordsPerPage(data.wordsPerPage))
+        && (!('pageLayout' in data) || isValidPageLayout(data.pageLayout))
+        && (!('spotlightAuto' in data) || data.spotlightAuto is bool)
+        && (!('blendMode' in data) || isValidBlendMode(data.blendMode))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -85,7 +119,8 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd',
-          'language', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize',
+          'language', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'wordSpacing',
+          'revealMode', 'effect', 'wordsPerPage', 'pageLayout', 'spotlightAuto', 'blendMode',
           'audioCleanEnabled', 'captionsCount', 'createdAt', 'updatedAt'
         ])
         && isValidId(data.id)
@@ -102,6 +137,13 @@ service cloud.firestore {
         && isValidPosition(data.position)
         && isValidHexColor(data.accentColor)
         && (data.fontSize is int || data.fontSize is float) && data.fontSize >= 12 && data.fontSize <= 48
+        && (!('wordSpacing' in data) || ((data.wordSpacing is int || data.wordSpacing is float) && data.wordSpacing >= 0.05 && data.wordSpacing <= 1.0))
+        && (!('revealMode' in data) || isValidRevealMode(data.revealMode))
+        && (!('effect' in data) || isValidEntranceEffect(data.effect))
+        && (!('wordsPerPage' in data) || isValidWordsPerPage(data.wordsPerPage))
+        && (!('pageLayout' in data) || isValidPageLayout(data.pageLayout))
+        && (!('spotlightAuto' in data) || data.spotlightAuto is bool)
+        && (!('blendMode' in data) || isValidBlendMode(data.blendMode))
         && data.audioCleanEnabled is bool
         && (data.captionsCount is int || data.captionsCount is float) && data.captionsCount >= 0 && data.captionsCount <= 5000
         && data.createdAt is timestamp
@@ -110,7 +152,7 @@ service cloud.firestore {
 
     function isValidCaptionItem(data) {
       return data.keys().hasAll(['id', 'projectId', 'ownerId', 'start', 'end', 'text', 'orderIndex', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['id', 'projectId', 'ownerId', 'start', 'end', 'text', 'orderIndex', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'projectId', 'ownerId', 'start', 'end', 'text', 'keyWords', 'orderIndex', 'createdAt', 'updatedAt'])
         && isValidId(data.id)
         && isValidId(data.projectId)
         && isValidId(data.ownerId)
@@ -118,6 +160,11 @@ service cloud.firestore {
         && (data.start is int || data.start is float) && data.start >= 0 && data.start <= 7200
         && (data.end is int || data.end is float) && data.end >= data.start && data.end <= 7200
         && data.text is string && data.text.size() <= 500
+        && (!('keyWords' in data) || (
+          data.keyWords is list
+          && data.keyWords.size() <= 40
+          && (data.keyWords.size() == 0 || (data.keyWords[0] is string && data.keyWords[0].size() <= 64))
+        ))
         && (data.orderIndex is int || data.orderIndex is float) && data.orderIndex >= 0 && data.orderIndex <= 5000
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
@@ -170,7 +217,11 @@ service cloud.firestore {
           && incoming().createdAt == existing().createdAt
           && incoming().updatedAt == request.time
           && exists(/databases/$(database)/documents/users/$(userId))
-          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'updatedAt']);
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'wordSpacing',
+            'revealMode', 'effect', 'wordsPerPage', 'pageLayout', 'spotlightAuto', 'blendMode',
+            'updatedAt'
+          ]);
         allow delete: if isVerified()
           && isValidId(userId)
           && isValidId(presetId)
@@ -200,8 +251,17 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (
           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd', 'language', 'audioCleanEnabled', 'captionsCount', 'updatedAt'])
-          || incoming().diff(existing()).affectedKeys().hasOnly(['style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'updatedAt'])
-          || incoming().diff(existing()).affectedKeys().hasOnly(['title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd', 'language', 'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'audioCleanEnabled', 'captionsCount', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'wordSpacing',
+            'revealMode', 'effect', 'wordsPerPage', 'pageLayout', 'spotlightAuto', 'blendMode',
+            'updatedAt'
+          ])
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'aspectRatio', 'duration', 'trimStart', 'trimEnd', 'language',
+            'style', 'fontFamily', 'position', 'accentColor', 'fontSize', 'wordSpacing',
+            'revealMode', 'effect', 'wordsPerPage', 'pageLayout', 'spotlightAuto', 'blendMode',
+            'audioCleanEnabled', 'captionsCount', 'updatedAt'
+          ])
         );
       allow delete: if isVerified()
         && isValidId(projectId)
@@ -236,7 +296,7 @@ service cloud.firestore {
           && incoming().createdAt == existing().createdAt
           && incoming().updatedAt == request.time
           && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid
-          && incoming().diff(existing()).affectedKeys().hasOnly(['start', 'end', 'text', 'orderIndex', 'updatedAt']);
+          && incoming().diff(existing()).affectedKeys().hasOnly(['start', 'end', 'text', 'keyWords', 'orderIndex', 'updatedAt']);
         allow delete: if isVerified()
           && isValidId(projectId)
           && isValidId(captionId)

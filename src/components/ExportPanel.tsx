@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { Download, FileText } from 'lucide-react';
+import { Copy, Download, FileText } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { buildSrt, type AspectRatio, type CaptionCue, type StyleConfig } from '../utils/captions';
+import {
+  buildPlainTranscript,
+  buildSrt,
+  buildVtt,
+  type AspectRatio,
+  type CaptionCue,
+  type StyleConfig,
+} from '../utils/captions';
 import type { AudioGraphHandle, NoiseCleanStrength } from '../utils/audioEngine';
 import { exportBurnedInWebM } from '../utils/videoExport';
 
@@ -117,6 +124,32 @@ export function ExportPanel({
     setStatus(`Saved ${safeSlug}.srt. Timestamps start at your trim point.`);
   };
 
+  const handleExportVtt = () => {
+    const valid = captions.some((c) => c.text.trim().length > 0);
+    if (!valid) {
+      setStatus('Add at least one caption with words before exporting .vtt.');
+      return;
+    }
+    const vtt = buildVtt(captions, trimStart);
+    triggerDownload(new Blob([vtt], { type: 'text/vtt;charset=utf-8' }), `${safeSlug}.vtt`);
+    setStatus(`Saved ${safeSlug}.vtt WebVTT subtitle file.`);
+  };
+
+  const handleExportTxt = async () => {
+    const txt = buildPlainTranscript(captions);
+    if (!txt) {
+      setStatus('Add at least one caption with words before copying transcript.');
+      return;
+    }
+    triggerDownload(new Blob([txt], { type: 'text/plain;charset=utf-8' }), `${safeSlug}-transcript.txt`);
+    try {
+      await navigator.clipboard.writeText(txt);
+      setStatus(`Saved ${safeSlug}-transcript.txt and copied plain transcript to clipboard.`);
+    } catch {
+      setStatus(`Saved ${safeSlug}-transcript.txt.`);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="space-y-1">
@@ -124,7 +157,7 @@ export function ExportPanel({
           Export without watermark
         </h3>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Video exports render live onto a high-DPI canvas and record as WebM with your active word-by-word style and optional cleaned audio.
+          Video exports render live onto a high-DPI canvas preserving your Reveal mode, Entrance effect, Spotlight key words, and cleaned or AI-voiced audio.
         </p>
       </div>
 
@@ -150,15 +183,39 @@ export function ExportPanel({
 
       <Separator />
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={handleExportSrt}
+          className="cursor-pointer font-semibold"
+        >
+          <FileText className="w-4 h-4" aria-hidden="true" />
+          <span>Download .srt</span>
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={handleExportVtt}
+          className="cursor-pointer font-semibold"
+        >
+          <FileText className="w-4 h-4" aria-hidden="true" />
+          <span>Download .vtt</span>
+        </Button>
+      </div>
+
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         size="lg"
-        onClick={handleExportSrt}
+        onClick={() => void handleExportTxt()}
         className="w-full cursor-pointer font-semibold"
       >
-        <FileText className="w-4 h-4" aria-hidden="true" />
-        <span>Download captions only (.srt)</span>
+        <Copy className="w-4 h-4" aria-hidden="true" />
+        <span>Export &amp; copy transcript (.txt)</span>
       </Button>
 
       {status && (

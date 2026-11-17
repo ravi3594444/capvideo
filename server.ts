@@ -102,6 +102,55 @@ app.post('/api/captions/refine', async (req: Request, res: Response) => {
     }
 
     const safeTexts = texts.slice(0, 300).map((t) => String(t ?? '').slice(0, 500));
+    if (action === 'keywords') {
+      const upstream = await fetch('https://api.inceptionlabs.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'mercury-3',
+          temperature: 0.1,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Select 1 to 2 high-impact Spotlight key words per caption (numbers, prices, dates, proper names, places, contrasting or power nouns). Never pick filler words or common verbs like is/will/has. Reply ONLY with a JSON array of string arrays matching input length.',
+            },
+            {
+              role: 'user',
+              content: `Captions JSON:\n${JSON.stringify(safeTexts)}`,
+            },
+          ],
+        }),
+      });
+
+      if (!upstream.ok) {
+        const errText = await upstream.text();
+        res.status(upstream.status).json({
+          error: `Inception Mercury 3 error (${upstream.status}): ${errText.slice(0, 200)}`,
+        });
+        return;
+      }
+
+      const json = await upstream.json();
+      const content = json?.choices?.[0]?.message?.content || '';
+      const parsed = JSON.parse(content.replace(/```json|```/g, '').trim());
+      if (!Array.isArray(parsed) || parsed.length !== safeTexts.length) {
+        throw new Error('Inception Mercury 3 keyword response shape mismatch.');
+      }
+      res.json({
+        providerUsed: 'inception-mercury-3',
+        keyWordsList: parsed.map((entry) =>
+          Array.isArray(entry)
+            ? entry.filter((w): w is string => typeof w === 'string' && w.trim().length > 0).slice(0, 6)
+            : []
+        ),
+      });
+      return;
+    }
+
     let instruction =
       'Fix punctuation, capitalisation, and obvious misheard words in each caption. Keep the same language and roughly the same length. Do not add new information.';
     if (action === 'punchy') {

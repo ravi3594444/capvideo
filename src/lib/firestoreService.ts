@@ -15,14 +15,27 @@ import {
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
-import type { AspectRatio, CaptionCue, CaptionFont, CaptionPosition, CaptionStyle } from '../utils/captions';
+import type {
+  AspectRatio,
+  CaptionBlendMode,
+  CaptionCue,
+  CaptionFont,
+  CaptionPosition,
+  CaptionStyle,
+  EntranceEffect,
+  PageLayoutMode,
+  RevealMode,
+  WordsPerPage,
+} from '../utils/captions';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import {
   clampFontSize,
+  clampWordSpacingVal,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_EMAIL_LENGTH,
   sanitizeCaptionText,
   sanitizeHexColor,
+  sanitizeKeyWords,
   sanitizePresetName,
   sanitizeTitle,
 } from './validation';
@@ -41,6 +54,13 @@ export interface CloudProject {
   position: CaptionPosition;
   accentColor: string;
   fontSize: number;
+  wordSpacing?: number;
+  revealMode?: RevealMode;
+  effect?: EntranceEffect;
+  wordsPerPage?: WordsPerPage;
+  pageLayout?: PageLayoutMode;
+  spotlightAuto?: boolean;
+  blendMode?: CaptionBlendMode;
   audioCleanEnabled: boolean;
   captionsCount: number;
   createdAtMs: number;
@@ -56,6 +76,13 @@ export interface CloudStylePreset {
   position: CaptionPosition;
   accentColor: string;
   fontSize: number;
+  wordSpacing?: number;
+  revealMode?: RevealMode;
+  effect?: EntranceEffect;
+  wordsPerPage?: WordsPerPage;
+  pageLayout?: PageLayoutMode;
+  spotlightAuto?: boolean;
+  blendMode?: CaptionBlendMode;
   updatedAtMs: number;
 }
 
@@ -131,6 +158,13 @@ export function subscribeUserProjects(
           position: (data.position as CaptionPosition) || 'pos-bottom',
           accentColor: String(data.accentColor || '#ffd60a'),
           fontSize: Number(data.fontSize) || 22,
+          wordSpacing: typeof data.wordSpacing === 'number' ? clampWordSpacingVal(data.wordSpacing) : 0.26,
+          revealMode: data.revealMode as RevealMode | undefined,
+          effect: data.effect as EntranceEffect | undefined,
+          wordsPerPage: data.wordsPerPage as WordsPerPage | undefined,
+          pageLayout: data.pageLayout as PageLayoutMode | undefined,
+          spotlightAuto: typeof data.spotlightAuto === 'boolean' ? data.spotlightAuto : true,
+          blendMode: (data.blendMode as CaptionBlendMode) || 'normal',
           audioCleanEnabled: Boolean(data.audioCleanEnabled),
           captionsCount: Number(data.captionsCount) || 0,
           createdAtMs: toMillis(data.createdAt),
@@ -157,16 +191,24 @@ export async function loadProjectCaptions(projectId: string, uid: string): Promi
     const snap = await getDocs(q);
     const items = snap.docs.map((d) => {
       const data = d.data();
+      const keyWords = Array.isArray(data.keyWords) ? sanitizeKeyWords(data.keyWords) : undefined;
       return {
         id: d.id,
         start: Number(data.start) || 0,
         end: Number(data.end) || 0.5,
         text: String(data.text || ''),
+        keyWords,
         orderIndex: Number(data.orderIndex) || 0,
       };
     });
     items.sort((a, b) => a.start - b.start || a.orderIndex - b.orderIndex);
-    return items.map(({ id, start, end, text }) => ({ id, start, end, text }));
+    return items.map(({ id, start, end, text, keyWords }) => ({
+      id,
+      start,
+      end,
+      text,
+      ...(keyWords && keyWords.length > 0 ? { keyWords } : {}),
+    }));
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
   }
@@ -187,6 +229,13 @@ export async function saveProjectToFirestore(
     position: CaptionPosition;
     accentColor: string;
     fontSize: number;
+    wordSpacing?: number;
+    revealMode?: RevealMode;
+    effect?: EntranceEffect;
+    wordsPerPage?: WordsPerPage;
+    pageLayout?: PageLayoutMode;
+    spotlightAuto?: boolean;
+    blendMode?: CaptionBlendMode;
     audioCleanEnabled: boolean;
   },
   captions: CaptionCue[]
@@ -216,6 +265,13 @@ export async function saveProjectToFirestore(
     position: input.position,
     accentColor: sanitizeHexColor(input.accentColor),
     fontSize: clampFontSize(input.fontSize),
+    wordSpacing: clampWordSpacingVal(input.wordSpacing ?? 0.26),
+    revealMode: input.revealMode || 'karaoke',
+    effect: input.effect || 'scaleUp',
+    wordsPerPage: input.wordsPerPage || 'auto',
+    pageLayout: input.pageLayout || 'replace',
+    spotlightAuto: input.spotlightAuto ?? true,
+    blendMode: input.blendMode || 'normal',
     audioCleanEnabled: Boolean(input.audioCleanEnabled),
     captionsCount: safeCaptions.length,
   };
@@ -241,6 +297,13 @@ export async function saveProjectToFirestore(
         position: payloadBase.position,
         accentColor: payloadBase.accentColor,
         fontSize: payloadBase.fontSize,
+        wordSpacing: payloadBase.wordSpacing,
+        revealMode: payloadBase.revealMode,
+        effect: payloadBase.effect,
+        wordsPerPage: payloadBase.wordsPerPage,
+        pageLayout: payloadBase.pageLayout,
+        spotlightAuto: payloadBase.spotlightAuto,
+        blendMode: payloadBase.blendMode,
         audioCleanEnabled: payloadBase.audioCleanEnabled,
         captionsCount: payloadBase.captionsCount,
         updatedAt: serverTimestamp(),
@@ -268,12 +331,14 @@ export async function saveProjectToFirestore(
       const safeStart = Math.max(0, Math.min(7200, Number(cue.start) || 0));
       const safeEnd = Math.max(safeStart, Math.min(7200, Number(cue.end) || safeStart + 0.5));
       const safeText = sanitizeCaptionText(cue.text);
+      const safeKeys = sanitizeKeyWords(cue.keyWords);
 
       if (existingMap.has(cueId)) {
         batch.update(cueRef, {
           start: safeStart,
           end: safeEnd,
           text: safeText,
+          keyWords: safeKeys,
           orderIndex: idx,
           updatedAt: serverTimestamp(),
         });
@@ -285,6 +350,7 @@ export async function saveProjectToFirestore(
           start: safeStart,
           end: safeEnd,
           text: safeText,
+          keyWords: safeKeys,
           orderIndex: idx,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -344,6 +410,13 @@ export function subscribeUserPresets(
           position: (data.position as CaptionPosition) || 'pos-bottom',
           accentColor: String(data.accentColor || '#ffd60a'),
           fontSize: Number(data.fontSize) || 22,
+          wordSpacing: typeof data.wordSpacing === 'number' ? clampWordSpacingVal(data.wordSpacing) : 0.26,
+          revealMode: data.revealMode as RevealMode | undefined,
+          effect: data.effect as EntranceEffect | undefined,
+          wordsPerPage: data.wordsPerPage as WordsPerPage | undefined,
+          pageLayout: data.pageLayout as PageLayoutMode | undefined,
+          spotlightAuto: typeof data.spotlightAuto === 'boolean' ? data.spotlightAuto : true,
+          blendMode: (data.blendMode as CaptionBlendMode) || 'normal',
           updatedAtMs: toMillis(data.updatedAt),
         };
       });
@@ -369,6 +442,13 @@ export async function saveStylePresetToFirestore(
     position: CaptionPosition;
     accentColor: string;
     fontSize: number;
+    wordSpacing?: number;
+    revealMode?: RevealMode;
+    effect?: EntranceEffect;
+    wordsPerPage?: WordsPerPage;
+    pageLayout?: PageLayoutMode;
+    spotlightAuto?: boolean;
+    blendMode?: CaptionBlendMode;
   }
 ): Promise<void> {
   const presetId = generateSafeId('preset');
@@ -383,6 +463,13 @@ export async function saveStylePresetToFirestore(
       position: input.position,
       accentColor: sanitizeHexColor(input.accentColor),
       fontSize: clampFontSize(input.fontSize),
+      wordSpacing: clampWordSpacingVal(input.wordSpacing ?? 0.26),
+      revealMode: input.revealMode || 'karaoke',
+      effect: input.effect || 'scaleUp',
+      wordsPerPage: input.wordsPerPage || 'auto',
+      pageLayout: input.pageLayout || 'replace',
+      spotlightAuto: input.spotlightAuto ?? true,
+      blendMode: input.blendMode || 'normal',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });

@@ -37,7 +37,7 @@ export function TopNav({
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/70 bg-card/70 backdrop-blur-xl backdrop-saturate-150 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
         <a
           href="#studio"
           onClick={(e) => {

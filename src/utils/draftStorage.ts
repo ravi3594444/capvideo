@@ -1,13 +1,21 @@
 import {
   CAPTION_FONT_OPTIONS,
   CAPTION_STYLE_CATALOG,
+  clampWordSpacing,
   DEFAULT_STYLE_CONFIG,
+  ENTRANCE_EFFECT_OPTIONS,
+  REVEAL_MODE_OPTIONS,
   type AspectRatio,
+  type CaptionBlendMode,
   type CaptionCue,
   type CaptionFont,
   type CaptionPosition,
   type CaptionStyle,
+  type EntranceEffect,
+  type PageLayoutMode,
+  type RevealMode,
   type StyleConfig,
+  type WordsPerPage,
 } from './captions';
 
 export const DRAFT_STORAGE_KEY = 'caption-lite:studio-draft:v1';
@@ -26,6 +34,11 @@ const VALID_ASPECTS = new Set<AspectRatio>(['r916', 'r11', 'r169']);
 const VALID_STYLES = new Set<CaptionStyle>(CAPTION_STYLE_CATALOG.map((s) => s.id));
 const VALID_FONTS = new Set<CaptionFont>(CAPTION_FONT_OPTIONS.map((f) => f.id));
 const VALID_POSITIONS = new Set<CaptionPosition>(['pos-bottom', 'pos-third', 'pos-centre']);
+const VALID_REVEALS = new Set<RevealMode>(REVEAL_MODE_OPTIONS.map((r) => r.id));
+const VALID_EFFECTS = new Set<EntranceEffect>(ENTRANCE_EFFECT_OPTIONS.map((e) => e.id));
+const VALID_WORDS_PER_PAGE = new Set<WordsPerPage>(['auto', '2', '3', '4']);
+const VALID_PAGE_LAYOUTS = new Set<PageLayoutMode>(['replace', 'stack']);
+const VALID_BLEND_MODES = new Set<CaptionBlendMode>(['normal', 'difference']);
 
 export function serializeStudioDraft(draft: StudioDraft): string {
   return JSON.stringify(draft);
@@ -45,11 +58,18 @@ export function parseStudioDraft(raw: string | null): StudioDraft | null {
       const start = Number(item.start);
       const end = Number(item.end);
       if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+      const cleanKeys = Array.isArray(item.keyWords)
+        ? item.keyWords
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim().slice(0, 64))
+            .slice(0, 40)
+        : undefined;
       cleanCaptions.push({
         id: typeof item.id === 'string' && item.id.trim() ? item.id.slice(0, 80) : `draft_${i}`,
         start: Math.max(0, start),
         end: Math.max(Math.max(0, start) + 0.1, end),
         text: typeof item.text === 'string' ? item.text.slice(0, 500) : '',
+        ...(cleanKeys ? { keyWords: cleanKeys } : {}),
       });
     }
 
@@ -77,6 +97,34 @@ export function parseStudioDraft(raw: string | null): StudioDraft | null {
         rawStyle && typeof rawStyle.fontSize === 'number' && Number.isFinite(rawStyle.fontSize)
           ? Math.min(38, Math.max(14, Math.round(rawStyle.fontSize)))
           : DEFAULT_STYLE_CONFIG.fontSize,
+      wordSpacing:
+        rawStyle && typeof rawStyle.wordSpacing === 'number' && Number.isFinite(rawStyle.wordSpacing)
+          ? clampWordSpacing(rawStyle.wordSpacing)
+          : DEFAULT_STYLE_CONFIG.wordSpacing,
+      revealMode:
+        rawStyle && VALID_REVEALS.has(rawStyle.revealMode as RevealMode)
+          ? (rawStyle.revealMode as RevealMode)
+          : DEFAULT_STYLE_CONFIG.revealMode,
+      effect:
+        rawStyle && VALID_EFFECTS.has(rawStyle.effect as EntranceEffect)
+          ? (rawStyle.effect as EntranceEffect)
+          : DEFAULT_STYLE_CONFIG.effect,
+      wordsPerPage:
+        rawStyle && VALID_WORDS_PER_PAGE.has(rawStyle.wordsPerPage as WordsPerPage)
+          ? (rawStyle.wordsPerPage as WordsPerPage)
+          : DEFAULT_STYLE_CONFIG.wordsPerPage,
+      pageLayout:
+        rawStyle && VALID_PAGE_LAYOUTS.has(rawStyle.pageLayout as PageLayoutMode)
+          ? (rawStyle.pageLayout as PageLayoutMode)
+          : DEFAULT_STYLE_CONFIG.pageLayout,
+      spotlightAuto:
+        rawStyle && typeof rawStyle.spotlightAuto === 'boolean'
+          ? rawStyle.spotlightAuto
+          : DEFAULT_STYLE_CONFIG.spotlightAuto,
+      blendMode:
+        rawStyle && VALID_BLEND_MODES.has(rawStyle.blendMode as CaptionBlendMode)
+          ? (rawStyle.blendMode as CaptionBlendMode)
+          : DEFAULT_STYLE_CONFIG.blendMode,
     };
 
     return {

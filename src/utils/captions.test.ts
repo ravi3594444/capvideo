@@ -242,4 +242,135 @@ test('getWordVisualSpec supports zero-background minimal, cinema bar, and spoken
   assert.ok(cinemaContainer.backdropColor);
 });
 
+import {
+  buildPlainTranscript,
+  buildVtt,
+  clampWordSpacing,
+  extractAutoKeyWords,
+  findPreviousCaption,
+  isNegativeEmphasisWord,
+  isWordSpotlightKey,
+  regroupCaptionsSmart,
+  removeFillerWordsFromCues,
+  toggleCueKeyWord,
+} from './captions';
+
+test('regroupCaptionsSmart enforces break rules for numbers, titles, sentences, and pause hold', () => {
+  const input = [
+    {
+      id: 'r1',
+      start: 0,
+      end: 3.6,
+      text: 'Do three push-ups with Dr. Smith today. It will work great!',
+    },
+    {
+      id: 'r2',
+      start: 6.0,
+      end: 7.0,
+      text: 'Done fast',
+    },
+  ];
+  const regrouped = regroupCaptionsSmart(input, '2', 0.8);
+  assert.ok(regrouped.length >= 3);
+  // Sentence boundary "." forces break cleanly between sentences
+  const sentenceBreakIdx = regrouped.findIndex((c) => c.text.includes('today.'));
+  assert.ok(sentenceBreakIdx >= 0);
+  assert.ok(!regrouped[sentenceBreakIdx].text.includes('It will'));
+  // Title "Dr." stays bound with "Smith"
+  assert.ok(regrouped.some((c) => c.text.includes('Dr. Smith')));
+  // Number "three" stays bound with "push-ups"
+  assert.ok(regrouped.some((c) => c.text.includes('three push-ups')));
+  // Weak word "will" is not left stranded at end of a multi-word page
+  assert.ok(!regrouped.some((c) => /\bwill$/i.test(c.text.trim())));
+  // Pause hold extends short caption end safely without overlapping next cue at 6.0s
+  const lastBeforeGap = regrouped[regrouped.length - 2];
+  assert.ok(lastBeforeGap.end < 6.0);
+});
+
+test('Spotlight auto key words highlight numbers, prices, entities, negative words, and support manual toggle', () => {
+  const cue = { id: 'k1', start: 0, end: 2, text: 'Save $49 in Tokyo never stop' };
+  const auto = extractAutoKeyWords(cue.text);
+  assert.ok(auto.includes('$49'));
+  assert.ok(auto.includes('tokyo'));
+  assert.ok(auto.includes('never'));
+  assert.equal(isNegativeEmphasisWord('never'), true);
+  assert.equal(isWordSpotlightKey('$49', cue, true), true);
+
+  const toggledOff = toggleCueKeyWord(cue, '$49', true);
+  assert.equal(isWordSpotlightKey('$49', toggledOff, true), false);
+
+  const toggledOn = toggleCueKeyWord(toggledOff, 'Save', true);
+  assert.equal(isWordSpotlightKey('Save', toggledOn, true), true);
+});
+
+test('removeFillerWordsFromCues, buildVtt, buildPlainTranscript, and two-axis animations work cleanly', () => {
+  const cleaned = removeFillerWordsFromCues([
+    { id: 'f1', start: 0, end: 2, text: 'Um hello, uh watch this!' },
+    { id: 'f2', start: 2, end: 3, text: 'um' },
+  ]);
+  assert.equal(cleaned.length, 1);
+  assert.equal(cleaned[0].text, 'hello, watch this!');
+
+  const vtt = buildVtt(cleaned, 0);
+  assert.match(vtt, /^WEBVTT/);
+  assert.match(vtt, /00:00:00\.000 --> 00:00:02\.000/);
+  assert.equal(buildPlainTranscript(cleaned), 'hello, watch this!');
+
+  const popHidden = getWordVisualSpec({
+    style: 'st-pop',
+    word: 'wait',
+    wordIndex: 0,
+    activeWordIndex: 1,
+    accentColor: '#ffd60a',
+    revealMode: 'pop',
+    effect: 'glitch',
+    currentTimeSec: 0.4,
+  });
+  assert.equal(popHidden.isHidden, true);
+
+  const spotlightBig = getWordVisualSpec({
+    style: 'st-font-switch',
+    word: '$99',
+    wordIndex: 0,
+    activeWordIndex: 2,
+    accentColor: '#22d3ee',
+    revealMode: 'spotlight',
+    effect: 'none',
+    isSpotlightKey: true,
+  });
+  assert.ok(spotlightBig.scale >= 1.3);
+  assert.equal(spotlightBig.color, '#22d3ee');
+
+  const prev = findPreviousCaption(
+    [
+      { id: 'p1', start: 0, end: 1.5, text: 'Line one' },
+      { id: 'p2', start: 1.6, end: 3.0, text: 'Line two' },
+    ],
+    { id: 'p2', start: 1.6, end: 3.0, text: 'Line two' }
+  );
+  assert.equal(prev?.id, 'p1');
+});
+
+test('clampWordSpacing bounds values and parseStudioDraft persists wordSpacing cleanly', () => {
+  assert.equal(clampWordSpacing(undefined), 0.26);
+  assert.equal(clampWordSpacing(-1), 0.06);
+  assert.equal(clampWordSpacing(2.5), 0.9);
+  assert.equal(clampWordSpacing(0.484), 0.48);
+
+  const parsed = parseStudioDraft(
+    JSON.stringify({
+      projectTitle: 'Spacing Test',
+      aspect: 'r916',
+      language: 'en-US',
+      loopClip: false,
+      styleConfig: { ...DEFAULT_STYLE_CONFIG, wordSpacing: 0.64 },
+      captions: [{ id: 'c1', start: 0, end: 1.2, text: 'Wide gap' }],
+      updatedAt: 1000,
+    })
+  );
+  assert.ok(parsed);
+  assert.equal(parsed?.styleConfig.wordSpacing, 0.64);
+});
+
+
 

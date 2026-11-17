@@ -12,6 +12,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TopNav, type AppView } from './components/TopNav';
 import { VideoStage } from './components/VideoStage';
+import { StudioTimelineBar } from './components/StudioTimelineBar';
 import { CaptionsPanel, type ServerCapabilities } from './components/CaptionsPanel';
 import { StylePanel } from './components/StylePanel';
 import { ReferenceMatchPanel } from './components/ReferenceMatchPanel';
@@ -21,12 +22,15 @@ import { ProjectsDashboard } from './components/ProjectsDashboard';
 import { DeployGuideView } from './components/DeployGuideView';
 import { HowItWorksView } from './components/HowItWorksView';
 import {
+  clampWordSpacing,
   commitCaptionHistory,
   createCaptionHistory,
   createSampleCaptions,
   DEFAULT_STYLE_CONFIG,
+  findActiveCaption,
   parseSrt,
   redoCaptionHistory,
+  toggleCueKeyWord,
   undoCaptionHistory,
   type AspectRatio,
   type CaptionCue,
@@ -86,9 +90,16 @@ function StudioApp() {
   const [styleConfig, setStyleConfig] = useState<StyleConfig>(
     () => initialDraft?.styleConfig ?? DEFAULT_STYLE_CONFIG
   );
+  const [previewStyleState, setPreviewStyleState] = useState<{
+    config: StyleConfig;
+    label: string;
+  } | null>(null);
   const [captionHistory, setCaptionHistory] = useState<CaptionHistoryState>(() =>
     createCaptionHistory(initialDraft ? initialDraft.captions : createSampleCaptions())
   );
+
+  const stageStyleConfig = previewStyleState?.config ?? styleConfig;
+  const activeSampleCue = findActiveCaption(captionHistory.present, 0) ?? captionHistory.present[0] ?? null;
 
   const captions = captionHistory.present;
   const canUndo = captionHistory.past.length > 0;
@@ -491,6 +502,13 @@ function StudioApp() {
           position: styleConfig.position,
           accentColor: styleConfig.accentColor,
           fontSize: styleConfig.fontSize,
+          wordSpacing: clampWordSpacing(styleConfig.wordSpacing),
+          revealMode: styleConfig.revealMode,
+          effect: styleConfig.effect,
+          wordsPerPage: styleConfig.wordsPerPage,
+          pageLayout: styleConfig.pageLayout,
+          spotlightAuto: styleConfig.spotlightAuto,
+          blendMode: styleConfig.blendMode,
           audioCleanEnabled: improveAudio,
         },
         captions
@@ -518,6 +536,13 @@ function StudioApp() {
         position: proj.position,
         accentColor: proj.accentColor,
         fontSize: proj.fontSize,
+        wordSpacing: clampWordSpacing(proj.wordSpacing ?? DEFAULT_STYLE_CONFIG.wordSpacing),
+        revealMode: proj.revealMode || DEFAULT_STYLE_CONFIG.revealMode,
+        effect: proj.effect || DEFAULT_STYLE_CONFIG.effect,
+        wordsPerPage: proj.wordsPerPage || DEFAULT_STYLE_CONFIG.wordsPerPage,
+        pageLayout: proj.pageLayout || DEFAULT_STYLE_CONFIG.pageLayout,
+        spotlightAuto: proj.spotlightAuto ?? true,
+        blendMode: proj.blendMode || 'normal',
       });
       setImproveAudio(proj.audioCleanEnabled);
       setDuration(proj.duration);
@@ -587,11 +612,11 @@ function StudioApp() {
 
       <main className="flex-1">
         {activeView === 'studio' && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-5 space-y-4">
             <h1 className="sr-only">Caption Lite Video Caption Studio</h1>
 
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border">
-              <div className="flex-1 min-w-[220px] max-w-md space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-3.5 border-b border-border">
+              <div className="flex-1 min-w-[220px] max-w-md space-y-1">
                 <Label htmlFor="project-title-input" className="sr-only">
                   Project title
                 </Label>
@@ -601,7 +626,7 @@ function StudioApp() {
                   maxLength={120}
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
-                  className="h-11 glass-subpanel font-display text-lg font-bold tracking-tight"
+                  className="h-10 glass-subpanel font-display text-base font-bold tracking-tight"
                 />
                 <p className="font-mono text-[11px] text-muted-foreground tabular-nums">
                   {aspect === 'r916' ? '9:16 Vertical' : aspect === 'r11' ? '1:1 Square' : '16:9 Wide'} ·{' '}
@@ -614,7 +639,7 @@ function StudioApp() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="lg"
+                  size="default"
                   onClick={handleResetDemo}
                   className="bg-card cursor-pointer whitespace-nowrap shrink-0 font-semibold"
                 >
@@ -624,7 +649,7 @@ function StudioApp() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="lg"
+                  size="default"
                   onClick={() => setDarkMode((prev) => !prev)}
                   aria-label={darkMode ? 'Switch to light studio mode' : 'Switch to dark studio mode'}
                   className="bg-card cursor-pointer whitespace-nowrap shrink-0 font-semibold"
@@ -644,8 +669,8 @@ function StudioApp() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              <div className="lg:col-span-5">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <div className="lg:col-span-5 lg:sticky lg:top-20">
                 <VideoStage
                   videoRef={videoRef}
                   videoUrl={videoUrl}
@@ -658,7 +683,8 @@ function StudioApp() {
                   trimEnd={trimEnd}
                   aspect={aspect}
                   captions={captions}
-                  styleConfig={styleConfig}
+                  styleConfig={stageStyleConfig}
+                  previewLabel={previewStyleState?.label ?? null}
                   improveAudio={improveAudio}
                   noiseStrength={noiseStrength}
                   audioMeterPct={audioMeterPct}
@@ -690,6 +716,16 @@ function StudioApp() {
                     );
                     setEditingCue(null);
                   }}
+                  onToggleCueKeyWord={(cueId, rawWord) => {
+                    const updated = captions.map((c) =>
+                      c.id === cueId
+                        ? toggleCueKeyWord(c, rawWord, styleConfig.spotlightAuto ?? true)
+                        : c
+                    );
+                    updateCaptions(updated);
+                    const nextEditing = updated.find((c) => c.id === cueId) ?? null;
+                    setEditingCue(nextEditing);
+                  }}
                   onCancelEditCue={() => setEditingCue(null)}
                   onLoadedMetadata={handleLoadedMetadata}
                   onTimeUpdate={handleTimeUpdate}
@@ -714,23 +750,26 @@ function StudioApp() {
                 <CardContent className="pt-1">
                   <Tabs
                     value={inspectorTab}
-                    onValueChange={(val) => setInspectorTab(val as InspectorTab)}
+                    onValueChange={(val) => {
+                      setPreviewStyleState(null);
+                      setInspectorTab(val as InspectorTab);
+                    }}
                     className="space-y-5"
                   >
                     <TabsList className="w-full h-10 grid grid-cols-5">
-                      <TabsTrigger value="captions" className="text-xs cursor-pointer">
+                      <TabsTrigger value="captions" className="text-xs cursor-pointer whitespace-nowrap">
                         02. Captions
                       </TabsTrigger>
-                      <TabsTrigger value="style" className="text-xs cursor-pointer">
+                      <TabsTrigger value="style" className="text-xs cursor-pointer whitespace-nowrap">
                         03. Style
                       </TabsTrigger>
-                      <TabsTrigger value="reference" className="text-xs cursor-pointer">
+                      <TabsTrigger value="reference" className="text-xs cursor-pointer whitespace-nowrap">
                         04. Reference
                       </TabsTrigger>
-                      <TabsTrigger value="ai" className="text-xs cursor-pointer">
+                      <TabsTrigger value="ai" className="text-xs cursor-pointer whitespace-nowrap">
                         AI Voice &amp; Text
                       </TabsTrigger>
-                      <TabsTrigger value="export" className="text-xs cursor-pointer">
+                      <TabsTrigger value="export" className="text-xs cursor-pointer whitespace-nowrap">
                         05. Export
                       </TabsTrigger>
                     </TabsList>
@@ -744,6 +783,8 @@ function StudioApp() {
                         trimStart={trimStart}
                         trimEnd={trimEnd}
                         language={language}
+                        wordsPerPage={styleConfig.wordsPerPage ?? 'auto'}
+                        spotlightAuto={styleConfig.spotlightAuto ?? true}
                         captions={captions}
                         capabilities={capabilities}
                         canUndo={canUndo}
@@ -751,6 +792,9 @@ function StudioApp() {
                         onUndo={handleUndo}
                         onRedo={handleRedo}
                         onLanguageChange={setLanguage}
+                        onWordsPerPageChange={(wordsPerPage) =>
+                          setStyleConfig((prev) => ({ ...prev, wordsPerPage }))
+                        }
                         onCaptionsChange={updateCaptions}
                         onSeekTo={handleSeekTo}
                         onOpenDeployGuide={() => setActiveView('deploy')}
@@ -760,9 +804,19 @@ function StudioApp() {
                     <TabsContent value="style">
                       <StylePanel
                         styleConfig={styleConfig}
+                        previewConfig={previewStyleState?.config ?? null}
+                        previewLabel={previewStyleState?.label ?? null}
+                        sampleCue={findActiveCaption(captions, currentTime) ?? activeSampleCue}
                         presets={cloudPresets}
                         signedIn={Boolean(user)}
                         onChange={setStyleConfig}
+                        onPreviewChange={(next, label) => {
+                          if (!next) {
+                            setPreviewStyleState(null);
+                          } else {
+                            setPreviewStyleState({ config: next, label: label ?? 'Preview' });
+                          }
+                        }}
                         onSavePreset={async (name) => {
                           if (!user) return;
                           await saveStylePresetToFirestore(user.uid, {
@@ -772,6 +826,13 @@ function StudioApp() {
                             position: styleConfig.position,
                             accentColor: styleConfig.accentColor,
                             fontSize: styleConfig.fontSize,
+                            wordSpacing: clampWordSpacing(styleConfig.wordSpacing),
+                            revealMode: styleConfig.revealMode,
+                            effect: styleConfig.effect,
+                            wordsPerPage: styleConfig.wordsPerPage,
+                            pageLayout: styleConfig.pageLayout,
+                            spotlightAuto: styleConfig.spotlightAuto,
+                            blendMode: styleConfig.blendMode,
                           });
                         }}
                         onDeletePreset={async (presetId) => {
@@ -826,6 +887,28 @@ function StudioApp() {
                 </CardContent>
               </Card>
             </div>
+
+            <StudioTimelineBar
+              videoLoaded={Boolean(videoUrl)}
+              duration={duration}
+              currentTime={currentTime}
+              trimStart={trimStart}
+              trimEnd={trimEnd}
+              isPlaying={isPlaying}
+              loopClip={loopClip}
+              captions={captions}
+              styleConfig={stageStyleConfig}
+              previewLabel={previewStyleState?.label ?? null}
+              onTogglePlay={() => void handleTogglePlay()}
+              onToggleLoop={() => setLoopClip((prev) => !prev)}
+              onSeekTo={handleSeekTo}
+              onEditActiveCue={(cue) => {
+                videoRef.current?.pause();
+                voiceAudioRef.current?.pause();
+                setIsPlaying(false);
+                setEditingCue(cue);
+              }}
+            />
           </div>
         )}
 

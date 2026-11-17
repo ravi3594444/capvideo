@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Film, Mic2, Pause, PencilLine, Play, Repeat, Upload, Volume2 } from 'lucide-react';
+import { Eye, Film, Mic2, Pause, PencilLine, Play, Repeat, Sparkles, Upload, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -18,12 +18,18 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  clampWordSpacing,
   classifyDroppedFile,
   findActiveCaption,
+  findPreviousCaption,
   formatSec,
   getActiveWordIndex,
   getCaptionContainerSpec,
   getWordVisualSpec,
+  isNegativeEmphasisWord,
+  isWordSpotlightKey,
+  resolveEffectiveEffect,
+  resolveEffectiveReveal,
   type AspectRatio,
   type CaptionCue,
   type StyleConfig,
@@ -43,6 +49,7 @@ interface VideoStageProps {
   aspect: AspectRatio;
   captions: CaptionCue[];
   styleConfig: StyleConfig;
+  previewLabel?: string | null;
   improveAudio: boolean;
   noiseStrength: NoiseCleanStrength;
   audioMeterPct: number;
@@ -64,6 +71,7 @@ interface VideoStageProps {
   onNoiseStrengthChange: (strength: NoiseCleanStrength) => void;
   onSelectCueForEdit: (cue: CaptionCue) => void;
   onSaveEditCue: (cueId: string, nextText: string) => void;
+  onToggleCueKeyWord: (cueId: string, rawWord: string) => void;
   onCancelEditCue: () => void;
   onLoadedMetadata: () => void;
   onTimeUpdate: () => void;
@@ -85,6 +93,7 @@ export function VideoStage({
   aspect,
   captions,
   styleConfig,
+  previewLabel = null,
   improveAudio,
   noiseStrength,
   audioMeterPct,
@@ -106,6 +115,7 @@ export function VideoStage({
   onNoiseStrengthChange,
   onSelectCueForEdit,
   onSaveEditCue,
+  onToggleCueKeyWord,
   onCancelEditCue,
   onLoadedMetadata,
   onTimeUpdate,
@@ -116,6 +126,7 @@ export function VideoStage({
   const [draftText, setDraftText] = useState('');
   const [lastEditingId, setLastEditingId] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [showSafeGuides, setShowSafeGuides] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (editingCue && editingCue.id !== lastEditingId) {
@@ -126,6 +137,15 @@ export function VideoStage({
   }
 
   const activeCue = findActiveCaption(captions, currentTime);
+  const effectiveReveal = resolveEffectiveReveal(styleConfig);
+  const effectiveEffect = resolveEffectiveEffect(styleConfig);
+  const spotlightAuto = styleConfig.spotlightAuto ?? true;
+  const pageLayout = styleConfig.pageLayout ?? 'replace';
+  const prevCue =
+    pageLayout === 'stack' && effectiveReveal !== 'pop'
+      ? findPreviousCaption(captions, activeCue)
+      : null;
+
   const words = activeCue ? activeCue.text.trim().split(/\s+/).filter(Boolean) : [];
   const activeWordIdx = activeCue ? getActiveWordIndex(activeCue, currentTime) : -1;
 
@@ -171,6 +191,8 @@ export function VideoStage({
     }
   };
 
+  const editingWords = editingCue ? draftText.trim().split(/\s+/).filter(Boolean) : [];
+
   return (
     <div className="space-y-4 @container/stage">
       <Card>
@@ -180,7 +202,9 @@ export function VideoStage({
               <CardTitle>
                 <h2 className="font-display text-lg font-bold">01. Video Stage</h2>
               </CardTitle>
-              <CardDescription className="text-xs tabular-nums mt-0.5">{fileInfo}</CardDescription>
+              <CardDescription className="text-xs tabular-nums mt-0.5">
+                {previewLabel ? `Auditioning: ${previewLabel} (hover preview)` : fileInfo}
+              </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -277,6 +301,32 @@ export function VideoStage({
               </div>
             )}
 
+            {showSafeGuides && (
+              <div
+                aria-hidden="true"
+                data-testid="safe-area-guides"
+                className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-2"
+              >
+                <div className="h-[11%] border border-dashed border-white/40 rounded-md flex items-center justify-center">
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-white/75 bg-black/50 px-1.5 py-0.5 rounded">
+                    Top status safe margin
+                  </span>
+                </div>
+                <div className="flex-1 flex justify-end items-center pr-1">
+                  <div className="w-8 h-28 border border-dashed border-white/35 rounded-md flex items-center justify-center">
+                    <span className="font-mono text-[8px] -rotate-90 text-white/65 whitespace-nowrap">
+                      Reels / Shorts UI
+                    </span>
+                  </div>
+                </div>
+                <div className="h-[22%] border border-dashed border-white/40 rounded-md flex items-end justify-center pb-1">
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-white/75 bg-black/50 px-1.5 py-0.5 rounded">
+                    Lower UI &amp; caption zone
+                  </span>
+                </div>
+              </div>
+            )}
+
             {dragActive && (
               <div className="pointer-events-none absolute inset-0 z-20 bg-zinc-950/80 backdrop-blur-xs flex items-center justify-center p-4 text-center">
                 <div className="rounded-xl border border-dashed border-white/60 px-5 py-4 bg-zinc-900/90">
@@ -290,61 +340,105 @@ export function VideoStage({
 
             {activeCue && words.length > 0 && (() => {
               const containerSpec = getCaptionContainerSpec(styleConfig.style);
-              const wordNodes = words.map((word, idx) => {
-                const isOn = idx === activeWordIdx;
-                const spec = getWordVisualSpec({
-                  style: styleConfig.style,
-                  fontFamily: styleConfig.fontFamily,
-                  word,
-                  wordIndex: idx,
-                  activeWordIndex: activeWordIdx,
-                  accentColor: styleConfig.accentColor,
-                });
-                const transforms: string[] = [];
-                if (spec.scale !== 1) transforms.push(`scale(${spec.scale})`);
-                if (spec.translateYEm !== 0) transforms.push(`translateY(${spec.translateYEm}em)`);
-                if (spec.rotateDeg !== 0) transforms.push(`rotate(${spec.rotateDeg}deg)`);
+              const cueElapsed = Math.max(0, currentTime - activeCue.start);
+              const cueDuration = Math.max(0.2, activeCue.end - activeCue.start);
+              const useDifference = styleConfig.blendMode === 'difference';
+              const wordSpacingEm = clampWordSpacing(styleConfig.wordSpacing);
 
-                const inlineStyle: React.CSSProperties = {
-                  fontFamily: spec.fontCss,
-                  fontWeight: spec.fontWeight,
-                  fontStyle: spec.fontStyle,
-                  color: spec.color,
-                  opacity: spec.opacity,
-                  backgroundColor: spec.backgroundColor ?? undefined,
-                  transform: transforms.length ? transforms.join(' ') : undefined,
-                  textShadow: spec.shadowMode === 'none' ? 'none' : undefined,
-                };
+              const wordNodes = words
+                .map((word, idx) => {
+                  const isOn = idx === activeWordIdx;
+                  const isKey = isWordSpotlightKey(word, activeCue, spotlightAuto);
+                  const spec = getWordVisualSpec({
+                    style: styleConfig.style,
+                    fontFamily: styleConfig.fontFamily,
+                    word,
+                    wordIndex: idx,
+                    activeWordIndex: activeWordIdx,
+                    accentColor: styleConfig.accentColor,
+                    revealMode: effectiveReveal,
+                    effect: effectiveEffect,
+                    cueElapsedSec: cueElapsed,
+                    cueDurationSec: cueDuration,
+                    isSpotlightKey: isKey,
+                    isNegative: isNegativeEmphasisWord(word),
+                    currentTimeSec: currentTime,
+                  });
+                  if (spec.isHidden) return null;
 
-                return (
-                  <button
-                    key={`${activeCue.id}_${idx}`}
-                    type="button"
-                    onClick={() => onSelectCueForEdit(activeCue)}
-                    title="Tap to fix this caption"
-                    style={inlineStyle}
-                    className={`w border-0 ${isOn ? 'on' : ''}`}
-                  >
-                    {spec.displayText}
-                  </button>
-                );
-              });
+                  const transforms: string[] = [];
+                  if (spec.scale !== 1) transforms.push(`scale(${spec.scale})`);
+                  if (spec.translateYEm !== 0) transforms.push(`translateY(${spec.translateYEm}em)`);
+                  if (spec.rotateDeg !== 0) transforms.push(`rotate(${spec.rotateDeg}deg)`);
+
+                  let customShadow = spec.shadowMode === 'none' ? 'none' : undefined;
+                  if (spec.glitchColorShift && spec.glitchDxPx) {
+                    const dx = spec.glitchDxPx;
+                    customShadow = `${-dx}px 0 rgba(255,45,85,0.8), ${dx}px 0 rgba(34,211,238,0.8)`;
+                  }
+
+                  const inlineStyle: React.CSSProperties = {
+                    fontFamily: spec.fontCss,
+                    fontWeight: spec.fontWeight,
+                    fontStyle: spec.fontStyle,
+                    color: spec.color,
+                    opacity: spec.opacity,
+                    backgroundColor: spec.backgroundColor ?? undefined,
+                    marginInline:
+                      spec.scale > 1.02 ? `${((spec.scale - 1) * 0.58).toFixed(2)}em` : undefined,
+                    transform: transforms.length ? transforms.join(' ') : undefined,
+                    textShadow: customShadow,
+                  };
+
+                  return (
+                    <button
+                      key={`${activeCue.id}_${idx}`}
+                      type="button"
+                      onClick={() => onSelectCueForEdit(activeCue)}
+                      title="Tap to edit text or toggle Spotlight key word"
+                      style={inlineStyle}
+                      className={`w border-0 ${isOn ? 'on' : ''}`}
+                    >
+                      {spec.displayText}
+                    </button>
+                  );
+                })
+                .filter(Boolean);
 
               return (
                 <div
                   data-testid="caption-overlay"
                   className={`cap-overlay ${styleConfig.position} ${styleConfig.style}`}
-                  style={{ fontSize: `${styleConfig.fontSize}px` }}
+                  style={{
+                    fontSize: `${styleConfig.fontSize}px`,
+                    mixBlendMode: useDifference ? 'difference' : undefined,
+                  }}
                 >
+                  {prevCue && (
+                    <div
+                      className="mb-1 text-[0.76em] font-semibold text-white/60 tracking-tight truncate px-3"
+                      style={{ textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}
+                    >
+                      {prevCue.text.trim()}
+                    </div>
+                  )}
                   {containerSpec.hasFullLineBackdrop ? (
                     <span
-                      className="cap-line-backdrop"
-                      style={{ backgroundColor: containerSpec.backdropColor ?? undefined }}
+                      className="cap-line-backdrop inline-flex flex-wrap justify-center items-baseline gap-y-[0.14em] max-w-full"
+                      style={{
+                        columnGap: `${wordSpacingEm}em`,
+                        backgroundColor: containerSpec.backdropColor ?? undefined,
+                      }}
                     >
                       {wordNodes}
                     </span>
                   ) : (
-                    wordNodes
+                    <div
+                      className="inline-flex flex-wrap justify-center items-baseline gap-y-[0.14em] max-w-full"
+                      style={{ columnGap: `${wordSpacingEm}em` }}
+                    >
+                      {wordNodes}
+                    </div>
                   )}
                 </div>
               );
@@ -391,18 +485,31 @@ export function VideoStage({
               </span>
             </div>
 
-            {captions.length > 0 && (
+            <div className="flex items-center gap-1.5">
               <Button
                 type="button"
-                variant="outline"
+                variant={showSafeGuides ? 'default' : 'outline'}
                 size="sm"
-                onClick={handleOpenActiveFix}
+                aria-pressed={showSafeGuides}
+                onClick={() => setShowSafeGuides((v) => !v)}
                 className="cursor-pointer whitespace-nowrap"
               >
-                <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Tap-to-fix</span>
+                <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Safe guides</span>
               </Button>
-            )}
+              {captions.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenActiveFix}
+                  className="cursor-pointer whitespace-nowrap"
+                >
+                  <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Tap-to-fix</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -579,25 +686,56 @@ export function VideoStage({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-display">Fix caption line</DialogTitle>
+            <DialogTitle className="font-display">Fix caption line &amp; key words</DialogTitle>
             <DialogDescription className="font-mono text-xs tabular-nums">
               {editingCue ? `${formatSec(editingCue.start)} – ${formatSec(editingCue.end)}` : ''}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="tap-fix-textarea">Caption words (press Enter to save)</Label>
-            <Textarea
-              id="tap-fix-textarea"
-              rows={3}
-              value={draftText}
-              onChange={(e) => setDraftText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && editingCue && draftText.trim()) {
-                  e.preventDefault();
-                  onSaveEditCue(editingCue.id, draftText.trim());
-                }
-              }}
-            />
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="tap-fix-textarea">Caption words (press Enter to save)</Label>
+              <Textarea
+                id="tap-fix-textarea"
+                rows={3}
+                value={draftText}
+                onChange={(e) => setDraftText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && editingCue && draftText.trim()) {
+                    e.preventDefault();
+                    onSaveEditCue(editingCue.id, draftText.trim());
+                  }
+                }}
+              />
+            </div>
+
+            {editingCue && editingWords.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
+                  <span>Tap words to Spotlight highlight</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {editingWords.map((w, wi) => {
+                    const marked = isWordSpotlightKey(w, { ...editingCue, text: draftText }, spotlightAuto);
+                    return (
+                      <button
+                        key={`${editingCue.id}_modal_${wi}`}
+                        type="button"
+                        aria-pressed={marked}
+                        onClick={() => onToggleCueKeyWord(editingCue.id, w)}
+                        className={`px-2 py-1 rounded-md text-xs font-semibold border transition-colors cursor-pointer ${
+                          marked
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background text-muted-foreground border-border hover:text-foreground'
+                        }`}
+                      >
+                        {w}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onCancelEditCue}>

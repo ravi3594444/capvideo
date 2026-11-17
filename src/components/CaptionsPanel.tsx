@@ -3,6 +3,7 @@ import {
   Check,
   Clock,
   Copy,
+  Eraser,
   FileText,
   Merge,
   Mic,
@@ -41,6 +42,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
+  buildPlainTranscript,
   buildSrt,
   captionsFromSegments,
   captionsFromText,
@@ -48,13 +50,19 @@ import {
   createCueId,
   createNextCue,
   createSampleCaptions,
+  extractAutoKeyWords,
   formatSec,
+  isWordSpotlightKey,
   mergeCaptionWithNext,
   parseSrt,
+  regroupCaptionsSmart,
+  removeFillerWordsFromCues,
   shiftCaptions,
   snapCueStartToTime,
   splitCaption,
+  toggleCueKeyWord,
   type CaptionCue,
+  type WordsPerPage,
 } from '../utils/captions';
 import { extractTrimmedWav } from '../utils/audioEngine';
 
@@ -71,6 +79,8 @@ interface CaptionsPanelProps {
   trimStart: number;
   trimEnd: number;
   language: string;
+  wordsPerPage: WordsPerPage;
+  spotlightAuto: boolean;
   captions: CaptionCue[];
   capabilities: ServerCapabilities | null;
   canUndo: boolean;
@@ -78,6 +88,7 @@ interface CaptionsPanelProps {
   onUndo: () => void;
   onRedo: () => void;
   onLanguageChange: (lang: string) => void;
+  onWordsPerPageChange: (density: WordsPerPage) => void;
   onCaptionsChange: (next: CaptionCue[]) => void;
   onSeekTo: (time: number, autoPlay?: boolean) => void;
   onOpenDeployGuide: () => void;
@@ -94,6 +105,13 @@ const LANGUAGE_OPTIONS = [
   { value: 'ar-SA', label: 'Arabic' },
 ];
 
+const DENSITY_OPTIONS: { value: WordsPerPage; label: string }[] = [
+  { value: '2', label: '2 words' },
+  { value: '3', label: '3 words' },
+  { value: '4', label: '4 words' },
+  { value: 'auto', label: 'Auto break' },
+];
+
 export function CaptionsPanel({
   videoFile,
   videoRef,
@@ -102,6 +120,8 @@ export function CaptionsPanel({
   trimStart,
   trimEnd,
   language,
+  wordsPerPage,
+  spotlightAuto,
   captions,
   capabilities,
   canUndo,
@@ -109,12 +129,14 @@ export function CaptionsPanel({
   onUndo,
   onRedo,
   onLanguageChange,
+  onWordsPerPageChange,
   onCaptionsChange,
   onSeekTo,
   onOpenDeployGuide,
 }: CaptionsPanelProps) {
   const [generating, setGenerating] = useState(false);
   const [polishing, setPolishing] = useState(false);
+  const [pickingKeywords, setPickingKeywords] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [missingEnv, setMissingEnv] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
@@ -122,6 +144,7 @@ export function CaptionsPanel({
   const [scriptOpen, setScriptOpen] = useState(false);
   const [scriptDraft, setScriptDraft] = useState('');
   const [copiedSrt, setCopiedSrt] = useState(false);
+  const [copiedTxt, setCopiedTxt] = useState(false);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const srtInputRef = useRef<HTMLInputElement | null>(null);
   const recogRef = useRef<{ stop: () => void } | null>(null);
@@ -201,7 +224,7 @@ export function CaptionsPanel({
       const effectiveEnd = trimEnd > trimStart ? trimEnd : duration || Number.POSITIVE_INFINITY;
 
       if (Array.isArray(data.words) && data.words.length > 0) {
-        made = captionsFromWords(data.words, offset, trimStart, effectiveEnd);
+        made = captionsFromWords(data.words, offset, trimStart, effectiveEnd, wordsPerPage);
       }
       if (!made.length && Array.isArray(data.utterances) && data.utterances.length > 0) {
         made = captionsFromSegments(
@@ -226,7 +249,7 @@ export function CaptionsPanel({
       } else {
         onCaptionsChange(made);
         setStatusMsg(
-          `Done! Added ${made.length} timed captions via Deepgram Nova-2. Edit any line below or click words on the video.`
+          `Done! Added ${made.length} smart-broken captions via Deepgram Nova-2. Tap any word chip below to mark Spotlight key words.`
         );
       }
     } catch (err) {
@@ -276,6 +299,74 @@ export function CaptionsPanel({
     } finally {
       setPolishing(false);
     }
+  };
+
+  const handleAutoPickSpotlightKeywords = async () => {
+    const valid = captions.some((c) => c.text.trim().length > 0);
+    if (!valid) {
+      setStatusMsg('Add or generate captions first to pick Spotlight key words.');
+      return;
+    }
+
+    setPickingKeywords(true);
+    try {
+      if (capabilities?.inception) {
+        const res = await fetch('/api/captions/refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            texts: captions.map((c) => c.text),
+            action: 'keywords',
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.keyWordsList)) {
+            onCaptionsChange(
+              captions.map((c, idx) => ({
+                ...c,
+                keyWords: Array.isArray(data.keyWordsList[idx]) && data.keyWordsList[idx].length > 0
+                  ? data.keyWordsList[idx]
+                  : extractAutoKeyWords(c.text),
+              }))
+            );
+            setStatusMsg('Updated Spotlight key words across every caption via Mercury 3.');
+            return;
+          }
+        }
+      }
+
+      // Deterministic local rule engine fallback (VideoCaptions.ai rules)
+      onCaptionsChange(
+        captions.map((c) => ({
+          ...c,
+          keyWords: extractAutoKeyWords(c.text),
+        }))
+      );
+      setStatusMsg('Highlighted Spotlight key words (numbers, entities & power nouns) across all cues.');
+    } finally {
+      setPickingKeywords(false);
+    }
+  };
+
+  const handleDensityRegroup = (nextDensity: WordsPerPage) => {
+    onWordsPerPageChange(nextDensity);
+    if (!captions.length) {
+      setStatusMsg(`Set phrase length to ${nextDensity === 'auto' ? 'Auto break' : `${nextDensity} words per screen`}.`);
+      return;
+    }
+    const regrouped = regroupCaptionsSmart(captions, nextDensity, 0.75);
+    onCaptionsChange(regrouped);
+    setStatusMsg(
+      `Regrouped ${regrouped.length} smart lines (${nextDensity === 'auto' ? 'Auto clause breaks' : `max ${nextDensity} words`}, keeping numbers & titles intact).`
+    );
+  };
+
+  const handleRemoveFillers = () => {
+    if (!captions.length) return;
+    const cleaned = removeFillerWordsFromCues(captions);
+    onCaptionsChange(cleaned);
+    setStatusMsg('Removed filler pauses (“um”, “uh”, “like”, “you know”). Click Undo if needed.');
   };
 
   const stopBrowserListening = (msg?: string) => {
@@ -415,7 +506,28 @@ export function CaptionsPanel({
     }
   };
 
+  const handleCopyTranscript = async () => {
+    const txt = buildPlainTranscript(captions);
+    if (!txt.trim()) {
+      setStatusMsg('Add captions first before copying plain transcript.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(txt);
+      setCopiedTxt(true);
+      setStatusMsg('Copied clean plain-text transcript to clipboard.');
+      window.setTimeout(() => setCopiedTxt(false), 1800);
+    } catch {
+      setStatusMsg('Clipboard permission unavailable in this browser.');
+    }
+  };
+
   const sortedCaptions = captions.slice().sort((a, b) => a.start - b.start);
+  const timelineSpan = Math.max(
+    duration || 0,
+    sortedCaptions.length ? sortedCaptions[sortedCaptions.length - 1].end : 0,
+    4
+  );
 
   return (
     <div className="space-y-5 @container/captions">
@@ -435,7 +547,7 @@ export function CaptionsPanel({
           </div>
 
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Automatically transcribe speech into timed 5-word lines using Deepgram Nova-2. Your API key stays securely on the server.
+            Extracts word-level timestamps via Deepgram Nova-2, applying smart phrase breaks and pause hold times automatically.
           </p>
 
           <div className="space-y-1.5">
@@ -519,7 +631,7 @@ export function CaptionsPanel({
               2. Or paste, type, or import
             </h2>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Already have a script? Paste it to auto-time across your clip in one click, add individual lines, or drop in an <code className="font-mono">.srt</code> file.
+              Paste a voiceover script to pace evenly across your clip, insert lines at the playhead, or import an <code className="font-mono">.srt</code> subtitle file.
             </p>
           </div>
 
@@ -543,7 +655,7 @@ export function CaptionsPanel({
               className="w-full font-semibold cursor-pointer"
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
-              <span>Add caption line</span>
+              <span>Add line at playhead</span>
             </Button>
 
             <Button
@@ -598,26 +710,82 @@ export function CaptionsPanel({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-heading text-sm font-bold text-foreground">
-              Edit caption lines
+              Caption Editor &amp; Timeline
             </h3>
             <p className="text-[11px] text-muted-foreground">
-              Edit text directly, snap timing to the video playhead, or fix spelling with AI Polish.
+              Set words per screen, tap any word chip to Spotlight it, or fine-tune start &amp; end timing.
             </p>
           </div>
+          <span className="font-mono text-xs text-muted-foreground tabular-nums">
+            {sortedCaptions.length} {sortedCaptions.length === 1 ? 'cue' : 'cues'}
+          </span>
+        </div>
+
+        {/* Dedicated Words-Per-Page + Cleanup Toolbar */}
+        <div className="rounded-xl glass-subpanel p-3 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-foreground">
+              Words on screen (smart break)
+            </span>
+            <div
+              role="group"
+              aria-label="Words per screen"
+              className="inline-flex items-center gap-1 rounded-lg bg-muted/70 p-0.5 border border-border"
+            >
+              {DENSITY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={wordsPerPage === opt.value}
+                  onClick={() => handleDensityRegroup(opt.value)}
+                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                    wordsPerPage === opt.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-1.5">
             {sortedCaptions.length > 0 && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="xs"
-                disabled={polishing}
-                onClick={() => void handleQuickAiPolish()}
-                aria-label="Fix spelling and punctuation with Mercury 3 AI"
-                className="cursor-pointer font-semibold"
-              >
-                <Sparkles className="w-3 h-3" aria-hidden="true" />
-                <span>{polishing ? 'Polishing…' : 'AI Polish'}</span>
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="xs"
+                  disabled={pickingKeywords}
+                  onClick={() => void handleAutoPickSpotlightKeywords()}
+                  className="cursor-pointer font-semibold"
+                >
+                  <Sparkles className="w-3 h-3" aria-hidden="true" />
+                  <span>{pickingKeywords ? 'Highlighting…' : 'Auto Key Words'}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={handleRemoveFillers}
+                  className="cursor-pointer"
+                >
+                  <Eraser className="w-3 h-3" aria-hidden="true" />
+                  <span>Remove fillers</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  disabled={polishing}
+                  onClick={() => void handleQuickAiPolish()}
+                  className="cursor-pointer"
+                >
+                  <Wand2 className="w-3 h-3" aria-hidden="true" />
+                  <span>{polishing ? 'Polishing…' : 'AI Polish'}</span>
+                </Button>
+              </>
             )}
 
             <Button
@@ -657,7 +825,6 @@ export function CaptionsPanel({
                     onCaptionsChange(shiftCaptions(captions, -0.2, duration || undefined));
                     setStatusMsg('Shifted all caption timings 0.2s earlier.');
                   }}
-                  title="Move all captions 0.2s earlier"
                   className="font-mono cursor-pointer"
                 >
                   -0.2s
@@ -670,7 +837,6 @@ export function CaptionsPanel({
                     onCaptionsChange(shiftCaptions(captions, 0.2, duration || undefined));
                     setStatusMsg('Shifted all caption timings 0.2s later.');
                   }}
-                  title="Move all captions 0.2s later"
                   className="font-mono cursor-pointer"
                 >
                   +0.2s
@@ -679,15 +845,20 @@ export function CaptionsPanel({
                   type="button"
                   variant="outline"
                   size="xs"
-                  onClick={() => void handleCopySrt()}
-                  aria-label="Copy .srt subtitles"
+                  onClick={() => void handleCopyTranscript()}
                   className="cursor-pointer"
                 >
-                  {copiedSrt ? (
-                    <Check className="w-3 h-3" aria-hidden="true" />
-                  ) : (
-                    <Copy className="w-3 h-3" aria-hidden="true" />
-                  )}
+                  {copiedTxt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                  <span>{copiedTxt ? 'Copied' : 'Copy .txt'}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => void handleCopySrt()}
+                  className="cursor-pointer"
+                >
+                  {copiedSrt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                   <span>{copiedSrt ? 'Copied' : 'Copy .srt'}</span>
                 </Button>
                 <Button
@@ -698,17 +869,12 @@ export function CaptionsPanel({
                     onCaptionsChange([]);
                     setStatusMsg('Cleared timeline. Click Undo to restore captions.');
                   }}
-                  aria-label="Clear all captions"
-                  className="cursor-pointer text-muted-foreground hover:text-destructive"
+                  className="cursor-pointer text-muted-foreground hover:text-destructive ml-auto"
                 >
-                  <span>Clear</span>
+                  Clear
                 </Button>
               </>
             )}
-
-            <span className="font-mono text-xs text-muted-foreground tabular-nums ml-1">
-              {sortedCaptions.length} {sortedCaptions.length === 1 ? 'cue' : 'cues'}
-            </span>
           </div>
         </div>
 
@@ -752,7 +918,7 @@ export function CaptionsPanel({
               <div className="space-y-2.5">
                 {sortedCaptions.map((cue, index) => {
                   const isActive = currentTime >= cue.start && currentTime < cue.end;
-                  const wordCount = cue.text.trim() ? cue.text.trim().split(/\s+/).length : 0;
+                  const cueWords = cue.text.trim() ? cue.text.trim().split(/\s+/) : [];
                   return (
                     <div
                       key={cue.id}
@@ -774,8 +940,8 @@ export function CaptionsPanel({
                             </span>
                           )}
                           <span className="text-[11px] text-muted-foreground tabular-nums">
-                            · {wordCount} {wordCount === 1 ? 'word' : 'words'}
-                            {wordCount > 6 ? ' (Split for Reels)' : ''}
+                            · {cueWords.length} {cueWords.length === 1 ? 'word' : 'words'}
+                            {cueWords.length > 6 ? ' (Split recommended)' : ''}
                           </span>
                         </div>
 
@@ -886,6 +1052,38 @@ export function CaptionsPanel({
                           className="text-sm"
                         />
                       </div>
+
+                      {cueWords.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+                            Spotlight:
+                          </span>
+                          {cueWords.map((word, wi) => {
+                            const marked = isWordSpotlightKey(word, cue, spotlightAuto);
+                            return (
+                              <button
+                                key={`${cue.id}_chip_${wi}`}
+                                type="button"
+                                aria-pressed={marked}
+                                onClick={() => {
+                                  const updated = toggleCueKeyWord(cue, word, spotlightAuto);
+                                  onCaptionsChange(
+                                    captions.map((c) => (c.id === cue.id ? updated : c))
+                                  );
+                                }}
+                                title="Click to toggle Spotlight key word emphasis"
+                                className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-colors cursor-pointer ${
+                                  marked
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background/70 text-muted-foreground border-border/80 hover:text-foreground'
+                                }`}
+                              >
+                                {word}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       <div className="flex flex-wrap items-center gap-2">
                         <Tooltip>
@@ -998,7 +1196,7 @@ export function CaptionsPanel({
               Paste script → Auto-time captions
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Paste your voiceover or dialogue below. It will be split into punchy 5-word caption cues evenly paced across your active trim window ({Math.max(2, Math.round((trimEnd > trimStart ? trimEnd - trimStart : duration || 10) * 10) / 10)}s).
+              Paste your voiceover or dialogue below. It will be split cleanly across your active trim window ({Math.max(2, Math.round((trimEnd > trimStart ? trimEnd - trimStart : duration || 10) * 10) / 10)}s) using smart phrase breaks.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
@@ -1028,12 +1226,13 @@ export function CaptionsPanel({
                     : duration > 0
                       ? duration
                       : Math.max(4, clean.split(/\s+/).length * 0.42);
-                const generated = captionsFromText(clean, trimStart, spanEnd);
+                const raw = captionsFromText(clean, trimStart, spanEnd);
+                const generated = regroupCaptionsSmart(raw, wordsPerPage, 0.75);
                 onCaptionsChange(generated);
                 setScriptDraft('');
                 setScriptOpen(false);
                 setStatusMsg(
-                  `Created ${generated.length} timed captions across your clip. Fine-tune timing or style below.`
+                  `Created ${generated.length} smart-broken captions across your clip. Fine-tune timing or style below.`
                 );
               }}
             >

@@ -1,8 +1,14 @@
 import {
+  clampWordSpacing,
   findActiveCaption,
+  findPreviousCaption,
   getActiveWordIndex,
   getCaptionContainerSpec,
   getWordVisualSpec,
+  isNegativeEmphasisWord,
+  isWordSpotlightKey,
+  resolveEffectiveEffect,
+  resolveEffectiveReveal,
   type AspectRatio,
   type CaptionCue,
   type StyleConfig,
@@ -171,6 +177,12 @@ export async function exportBurnedInWebM(
 
   const fontPx = Math.round(styleConfig.fontSize * (canvas.width / 340));
   const containerSpec = getCaptionContainerSpec(styleConfig.style);
+  const effectiveReveal = resolveEffectiveReveal(styleConfig);
+  const effectiveEffect = resolveEffectiveEffect(styleConfig);
+  const spotlightAuto = styleConfig.spotlightAuto ?? true;
+  const pageLayout = styleConfig.pageLayout ?? 'replace';
+  const useDifference = styleConfig.blendMode === 'difference';
+  const wordGapPx = fontPx * (clampWordSpacing(styleConfig.wordSpacing) + 0.08);
 
   const drawFrame = () => {
     const vw = video.videoWidth || 16;
@@ -186,14 +198,32 @@ export async function exportBurnedInWebM(
     if (cue) {
       const words = cue.text.trim().split(/\s+/).filter(Boolean);
       const on = getActiveWordIndex(cue, video.currentTime);
+      const cueElapsed = Math.max(0, video.currentTime - cue.start);
+      const cueDuration = Math.max(0.2, cue.end - cue.start);
       ctx.textBaseline = 'middle';
 
-      const lines: string[][] = [];
-      for (let i = 0; i < words.length; i += 5) {
-        lines.push(words.slice(i, i + 5));
+      const prevCue =
+        pageLayout === 'stack' && effectiveReveal !== 'pop'
+          ? findPreviousCaption(captions, cue)
+          : null;
+
+      const wrapSize = styleConfig.wordsPerPage === '2' ? 2 : styleConfig.wordsPerPage === '3' ? 3 : styleConfig.wordsPerPage === '4' ? 4 : 4;
+      const lines: { word: string; gi: number }[][] = [];
+      if (effectiveReveal === 'pop') {
+        if (words[on]) lines.push([{ word: words[on], gi: on }]);
+      } else {
+        for (let i = 0; i < words.length; i += wrapSize) {
+          lines.push(
+            words.slice(i, i + wrapSize).map((word, wi) => ({
+              word,
+              gi: i + wi,
+            }))
+          );
+        }
       }
 
       const lineHeight = fontPx * 1.38;
+      const stackOffset = prevCue ? lineHeight * 0.95 : 0;
       const posY =
         styleConfig.position === 'pos-centre'
           ? canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2
@@ -201,29 +231,52 @@ export async function exportBurnedInWebM(
             ? canvas.height * 0.68
             : canvas.height - lines.length * lineHeight - canvas.height * 0.05;
 
-      // Measure per-word exact font widths for alignment
-      const lineSpecs = lines.map((line, li) =>
-        line.map((word, wi) => {
-          const gi = li * 5 + wi;
-          const spec = getWordVisualSpec({
-            style: styleConfig.style,
-            fontFamily: styleConfig.fontFamily,
-            word,
-            wordIndex: gi,
-            activeWordIndex: on,
-            accentColor: styleConfig.accentColor,
-          });
-          const px = Math.round(fontPx * spec.scale);
-          ctx.font = `${spec.fontStyle} ${spec.fontWeight} ${px}px ${spec.fontCss}`;
-          const widthMeasured = ctx.measureText(spec.displayText).width;
-          return { spec, px, widthMeasured };
-        })
+      // Render preceding trailing line faintly above active line when Stack Pages is enabled
+      if (prevCue) {
+        ctx.save();
+        ctx.globalAlpha = 0.56;
+        if (useDifference) ctx.globalCompositeOperation = 'difference';
+        const prevFontPx = Math.round(fontPx * 0.84);
+        ctx.font = `600 ${prevFontPx}px "Manrope", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 6;
+        ctx.fillText(prevCue.text.trim(), canvas.width / 2, posY - stackOffset + fontPx * 0.45);
+        ctx.restore();
+      }
+
+      const lineSpecs = lines.map((line) =>
+        line
+          .map(({ word, gi }) => {
+            const isKey = isWordSpotlightKey(word, cue, spotlightAuto);
+            const spec = getWordVisualSpec({
+              style: styleConfig.style,
+              fontFamily: styleConfig.fontFamily,
+              word,
+              wordIndex: gi,
+              activeWordIndex: on,
+              accentColor: styleConfig.accentColor,
+              revealMode: effectiveReveal,
+              effect: effectiveEffect,
+              cueElapsedSec: cueElapsed,
+              cueDurationSec: cueDuration,
+              isSpotlightKey: isKey,
+              isNegative: isNegativeEmphasisWord(word),
+              currentTimeSec: video.currentTime,
+            });
+            if (spec.isHidden) return null;
+            const px = Math.round(fontPx * spec.scale);
+            ctx.font = `${spec.fontStyle} ${spec.fontWeight} ${px}px ${spec.fontCss}`;
+            const widthMeasured = ctx.measureText(spec.displayText).width;
+            return { spec, px, widthMeasured };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null)
       );
 
-      // Draw unified full-line cinema backdrop if enabled
-      if (containerSpec.hasFullLineBackdrop && containerSpec.backdropColor && lineSpecs.length > 0) {
+      if (containerSpec.hasFullLineBackdrop && containerSpec.backdropColor && lineSpecs.some((r) => r.length > 0)) {
         const lineTotals = lineSpecs.map(
-          (row) => row.reduce((acc, item) => acc + item.widthMeasured, 0) + Math.max(0, row.length - 1) * fontPx * 0.32
+          (row) => row.reduce((acc, item) => acc + item.widthMeasured, 0) + Math.max(0, row.length - 1) * wordGapPx
         );
         const maxLineW = Math.max(...lineTotals);
         const padX = fontPx * 0.65;
@@ -241,16 +294,18 @@ export async function exportBurnedInWebM(
       }
 
       lineSpecs.forEach((row, li) => {
+        if (!row.length) return;
         const baseY = posY + li * lineHeight + fontPx / 2;
         const total =
           row.reduce((a, b) => a + b.widthMeasured, 0) +
-          Math.max(0, row.length - 1) * fontPx * 0.32;
+          Math.max(0, row.length - 1) * wordGapPx;
         let x = (canvas.width - total) / 2;
 
         row.forEach(({ spec, px, widthMeasured }) => {
           const y = baseY + spec.translateYEm * fontPx;
           ctx.save();
           ctx.globalAlpha = spec.opacity;
+          if (useDifference) ctx.globalCompositeOperation = 'difference';
           ctx.font = `${spec.fontStyle} ${spec.fontWeight} ${px}px ${spec.fontCss}`;
           ctx.textAlign = 'left';
 
@@ -272,6 +327,13 @@ export async function exportBurnedInWebM(
           ctx.shadowBlur = 0;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 0;
+
+          if (spec.glitchColorShift && spec.glitchDxPx) {
+            ctx.fillStyle = 'rgba(255, 45, 85, 0.72)';
+            ctx.fillText(spec.displayText, x - spec.glitchDxPx, y);
+            ctx.fillStyle = 'rgba(34, 211, 238, 0.72)';
+            ctx.fillText(spec.displayText, x + spec.glitchDxPx, y);
+          }
 
           if (spec.shadowMode === 'soft') {
             ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';

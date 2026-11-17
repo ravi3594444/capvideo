@@ -101,6 +101,35 @@
         "fontSize": {
           "type": "number"
         },
+        "wordSpacing": {
+          "type": "number"
+        },
+        "revealMode": {
+          "type": "string",
+          "enum": ["karaoke", "build", "flash", "pop", "spotlight"]
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "none", "fadeIn", "scaleUp", "bounce", "glitch",
+            "typewriter", "scramble", "flipUp", "wave", "neonPulse", "maskSlide"
+          ]
+        },
+        "wordsPerPage": {
+          "type": "string",
+          "enum": ["auto", "2", "3", "4"]
+        },
+        "pageLayout": {
+          "type": "string",
+          "enum": ["replace", "stack"]
+        },
+        "spotlightAuto": {
+          "type": "boolean"
+        },
+        "blendMode": {
+          "type": "string",
+          "enum": ["normal", "difference"]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -188,6 +217,35 @@
         "fontSize": {
           "type": "number"
         },
+        "wordSpacing": {
+          "type": "number"
+        },
+        "revealMode": {
+          "type": "string",
+          "enum": ["karaoke", "build", "flash", "pop", "spotlight"]
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "none", "fadeIn", "scaleUp", "bounce", "glitch",
+            "typewriter", "scramble", "flipUp", "wave", "neonPulse", "maskSlide"
+          ]
+        },
+        "wordsPerPage": {
+          "type": "string",
+          "enum": ["auto", "2", "3", "4"]
+        },
+        "pageLayout": {
+          "type": "string",
+          "enum": ["replace", "stack"]
+        },
+        "spotlightAuto": {
+          "type": "boolean"
+        },
+        "blendMode": {
+          "type": "string",
+          "enum": ["normal", "difference"]
+        },
         "audioCleanEnabled": {
           "type": "boolean"
         },
@@ -254,6 +312,10 @@
         "text": {
           "type": "string",
           "maxLength": 500
+        },
+        "keyWords": {
+          "type": "array",
+          "description": "Optional list of manually pinned Spotlight key words for emphasis."
         },
         "orderIndex": {
           "type": "number"

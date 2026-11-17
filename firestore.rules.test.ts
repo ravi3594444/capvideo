@@ -59,4 +59,23 @@ test('Dirty Dozen schema validation rejects shadow fields, ID poisoning, and inv
   assert.equal(validateCaptionPayload({ ...validCaption, start: 5, end: 2 }).valid, false);
   assert.equal(validateCaptionPayload({ ...validCaption, text: 'z'.repeat(501) }).valid, false);
   assert.equal(validateCaptionPayload({ ...validCaption, role: 'admin' }).valid, false);
+  // Bounded Spotlight keyWords and two-axis StyleConfig validation
+  assert.equal(
+    validateProjectPayload({
+      ...validProject,
+      wordSpacing: 0.42,
+      revealMode: 'spotlight',
+      effect: 'scaleUp',
+      wordsPerPage: '3',
+      pageLayout: 'stack',
+      spotlightAuto: true,
+      blendMode: 'difference',
+    }).valid,
+    true
+  );
+  assert.equal(validateProjectPayload({ ...validProject, wordSpacing: 4.5 }).valid, false);
+  assert.equal(validateProjectPayload({ ...validProject, revealMode: 'bogus' }).valid, false);
+  assert.equal(validateCaptionPayload({ ...validCaption, keyWords: ['espresso', '$5'] }).valid, true);
+  assert.equal(validateCaptionPayload({ ...validCaption, keyWords: Array(45).fill('a') }).valid, false);
 });
+
