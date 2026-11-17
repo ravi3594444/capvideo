@@ -1,0 +1,927 @@
+From 5e89f86cdf45d9d9247cc4e574ad1788ec955a42 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 10:41:29 +0000
+Subject: [PATCH] feat(studio): phone-first add-video flow, bottom tab bar, and
+ live style preview on your footage
+
+- Add video from phone gallery, camera capture, or desktop drag-and-drop (device-aware empty state)
+- Auto-caption now opens the video picker when no clip is loaded; pasted .srt text is accepted
+- Bottom tab bar on phones; tab content scrolls into view; stage capped to ~half the viewport
+- Style preview strip is sticky on small screens and renders on the real video frame
+- Tap/hover copy adapts to the input device; 44px touch targets, larger slider thumbs, 12px min helper text
+- Remove step numbering from tabs and headings; theme text selection and caret from the palette
+---
+ index.html                        |   2 +-
+ src/App.tsx                       | 125 ++++++++++++++++++++++--------
+ src/components/CaptionsPanel.tsx  |  39 ++++++----
+ src/components/ExportPanel.tsx    |   2 +-
+ src/components/HowItWorksView.tsx |   2 +-
+ src/components/StylePanel.tsx     |  50 +++++++++---
+ src/components/VideoStage.tsx     | 109 ++++++++++++++++----------
+ src/hooks/useMediaQuery.ts        |  31 ++++++++
+ src/hooks/useVideoFrame.ts        |  52 +++++++++++++
+ src/index.css                     |  46 ++++++++++-
+ 10 files changed, 357 insertions(+), 101 deletions(-)
+ create mode 100644 src/hooks/useMediaQuery.ts
+ create mode 100644 src/hooks/useVideoFrame.ts
+
+diff --git a/index.html b/index.html
+index 82a3f56..afd2f51 100644
+--- a/index.html
++++ b/index.html
+@@ -2,7 +2,7 @@
+ <html lang="en" class="dark">
+   <head>
+     <meta charset="UTF-8" />
+-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+     <title>Caption Lite — Free Video Captioning &amp; Style Studio</title>
+     <meta
+       name="description"
+diff --git a/src/App.tsx b/src/App.tsx
+index 54be4c3..e0a102a 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,5 +1,16 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
+-import { AlertCircle, Moon, RotateCcw, Sun } from 'lucide-react';
++import {
++  AlertCircle,
++  Captions,
++  Download,
++  Moon,
++  Palette,
++  Pipette,
++  RotateCcw,
++  Sparkles,
++  Sun,
++  type LucideIcon,
++} from 'lucide-react';
+ import { toast } from 'sonner';
+ import { Alert, AlertDescription } from '@/components/ui/alert';
+ import { Button } from '@/components/ui/button';
+@@ -45,6 +56,7 @@ import {
+   type NoiseCleanStrength,
+ } from './utils/audioEngine';
+ import { generateSampleCreatorClip } from './utils/sampleClip';
++import { useIsCompactLayout } from './hooks/useMediaQuery';
+ import {
+   deleteProjectFromFirestore,
+   deleteStylePresetFromFirestore,
+@@ -59,6 +71,14 @@ import {
+ 
+ type InspectorTab = 'captions' | 'style' | 'reference' | 'ai' | 'export';
+ 
++const INSPECTOR_TABS: { id: InspectorTab; label: string; Icon: LucideIcon }[] = [
++  { id: 'captions', label: 'Captions', Icon: Captions },
++  { id: 'style', label: 'Style', Icon: Palette },
++  { id: 'reference', label: 'Reference', Icon: Pipette },
++  { id: 'ai', label: 'AI tools', Icon: Sparkles },
++  { id: 'export', label: 'Export', Icon: Download },
++];
++
+ function getInitialView(): AppView {
+   if (typeof window === 'undefined') return 'studio';
+   const hash = window.location.hash.replace(/^#/, '');
+@@ -77,6 +97,9 @@ function StudioApp() {
+ 
+   const [activeView, setActiveView] = useState<AppView>(() => getInitialView());
+   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('captions');
++  const isCompact = useIsCompactLayout();
++  const inspectorRef = useRef<HTMLDivElement | null>(null);
++  const videoPickerRef = useRef<HTMLInputElement | null>(null);
+   const [darkMode, setDarkMode] = useState(true);
+ 
+   // Project & local-draft state
+@@ -125,9 +148,7 @@ function StudioApp() {
+   const videoRef = useRef<HTMLVideoElement | null>(null);
+   const [videoFile, setVideoFile] = useState<File | null>(null);
+   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+-  const [fileInfo, setFileInfo] = useState(
+-    'No video loaded · Drop MP4/WebM or click Pick video'
+-  );
++  const [fileInfo, setFileInfo] = useState('No video yet');
+   const [duration, setDuration] = useState(0);
+   const [currentTime, setCurrentTime] = useState(0);
+   const [trimStart, setTrimStart] = useState(0);
+@@ -309,6 +330,19 @@ function StudioApp() {
+     toast.success(`Loaded “${file.name}”.`);
+   };
+ 
++  const handleInspectorTabChange = (tab: InspectorTab) => {
++    setPreviewStyleState(null);
++    setInspectorTab(tab);
++    if (!isCompact) return;
++    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
++    window.requestAnimationFrame(() => {
++      inspectorRef.current?.scrollIntoView({
++        behavior: reduceMotion ? 'auto' : 'smooth',
++        block: 'start',
++      });
++    });
++  };
++
+   const handleSrtFileDropped = async (file: File) => {
+     const text = await file.text();
+     const parsed = parseSrt(text, trimStart);
+@@ -576,7 +610,7 @@ function StudioApp() {
+     setLoopClip(false);
+     setStyleConfig(DEFAULT_STYLE_CONFIG);
+     resetCaptionHistory(createSampleCaptions());
+-    toast.success('Reset studio draft back to sample captions.');
++    toast.success('Studio reset to the sample captions.');
+   };
+ 
+   return (
+@@ -612,7 +646,7 @@ function StudioApp() {
+ 
+       <main className="flex-1">
+         {activeView === 'studio' && (
+-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-5 space-y-4">
++          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-5 space-y-4 max-lg:pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+             <h1 className="sr-only">Caption Lite Video Caption Studio</h1>
+ 
+             <div className="flex flex-wrap items-center justify-between gap-4 pb-3.5 border-b border-border">
+@@ -641,10 +675,11 @@ function StudioApp() {
+                   variant="outline"
+                   size="default"
+                   onClick={handleResetDemo}
++                  aria-label="Start over with the sample captions"
+                   className="bg-card cursor-pointer whitespace-nowrap shrink-0 font-semibold"
+                 >
+                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+-                  <span>Reset demo</span>
++                  <span className="hidden sm:inline">Start over</span>
+                 </Button>
+                 <Button
+                   type="button"
+@@ -657,12 +692,12 @@ function StudioApp() {
+                   {darkMode ? (
+                     <>
+                       <Sun className="w-3.5 h-3.5" aria-hidden="true" />
+-                      <span>Light studio</span>
++                      <span className="hidden sm:inline">Light studio</span>
+                     </>
+                   ) : (
+                     <>
+                       <Moon className="w-3.5 h-3.5" aria-hidden="true" />
+-                      <span>Dark studio</span>
++                      <span className="hidden sm:inline">Dark studio</span>
+                     </>
+                   )}
+                 </Button>
+@@ -673,6 +708,7 @@ function StudioApp() {
+               <div className="lg:col-span-5 lg:sticky lg:top-20">
+                 <VideoStage
+                   videoRef={videoRef}
++                  videoPickerRef={videoPickerRef}
+                   videoUrl={videoUrl}
+                   fileInfo={fileInfo}
+                   duration={duration}
+@@ -746,32 +782,23 @@ function StudioApp() {
+                 />
+               </div>
+ 
+-              <Card className="lg:col-span-7">
++              <Card ref={inspectorRef} className="lg:col-span-7 overflow-visible scroll-mt-28 md:scroll-mt-20">
+                 <CardContent className="pt-1">
+                   <Tabs
+                     value={inspectorTab}
+-                    onValueChange={(val) => {
+-                      setPreviewStyleState(null);
+-                      setInspectorTab(val as InspectorTab);
+-                    }}
++                    onValueChange={(val) => handleInspectorTabChange(val as InspectorTab)}
+                     className="space-y-5"
+                   >
+-                    <TabsList className="w-full h-10 grid grid-cols-5">
+-                      <TabsTrigger value="captions" className="text-xs cursor-pointer whitespace-nowrap">
+-                        02. Captions
+-                      </TabsTrigger>
+-                      <TabsTrigger value="style" className="text-xs cursor-pointer whitespace-nowrap">
+-                        03. Style
+-                      </TabsTrigger>
+-                      <TabsTrigger value="reference" className="text-xs cursor-pointer whitespace-nowrap">
+-                        04. Reference
+-                      </TabsTrigger>
+-                      <TabsTrigger value="ai" className="text-xs cursor-pointer whitespace-nowrap">
+-                        AI Voice &amp; Text
+-                      </TabsTrigger>
+-                      <TabsTrigger value="export" className="text-xs cursor-pointer whitespace-nowrap">
+-                        05. Export
+-                      </TabsTrigger>
++                    <TabsList className="hidden lg:grid w-full h-10 grid-cols-5">
++                      {INSPECTOR_TABS.map(({ id, label }) => (
++                        <TabsTrigger
++                          key={id}
++                          value={id}
++                          className="text-xs cursor-pointer whitespace-nowrap"
++                        >
++                          {label}
++                        </TabsTrigger>
++                      ))}
+                     </TabsList>
+ 
+                     <TabsContent value="captions">
+@@ -798,11 +825,14 @@ function StudioApp() {
+                         onCaptionsChange={updateCaptions}
+                         onSeekTo={handleSeekTo}
+                         onOpenDeployGuide={() => setActiveView('deploy')}
++                        onRequestVideo={() => videoPickerRef.current?.click()}
+                       />
+                     </TabsContent>
+ 
+                     <TabsContent value="style">
+                       <StylePanel
++                        videoRef={videoRef}
++                        videoUrl={videoUrl}
+                         styleConfig={styleConfig}
+                         previewConfig={previewStyleState?.config ?? null}
+                         previewLabel={previewStyleState?.label ?? null}
+@@ -909,6 +939,39 @@ function StudioApp() {
+                 setEditingCue(cue);
+               }}
+             />
++
++            <nav
++              aria-label="Studio sections"
++              className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
++            >
++              <div className="mx-auto flex max-w-xl">
++                {INSPECTOR_TABS.map(({ id, label, Icon }) => {
++                  const active = inspectorTab === id;
++                  return (
++                    <button
++                      key={id}
++                      type="button"
++                      aria-current={active ? 'true' : undefined}
++                      onClick={() => handleInspectorTabChange(id)}
++                      className={`relative flex flex-1 min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer transition-colors ${
++                        active
++                          ? 'text-foreground font-semibold'
++                          : 'text-muted-foreground font-medium'
++                      }`}
++                    >
++                      {active && (
++                        <span
++                          aria-hidden="true"
++                          className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-primary"
++                        />
++                      )}
++                      <Icon className="w-5 h-5" aria-hidden="true" />
++                      <span>{label}</span>
++                    </button>
++                  );
++                })}
++              </div>
++            </nav>
+           </div>
+         )}
+ 
+@@ -941,7 +1004,7 @@ function StudioApp() {
+         <span className="font-display font-semibold text-foreground">Caption Lite</span> · Deepgram Nova-2 &amp; Inception Mercury 3 · Firebase Auth &amp; Firestore sync
+       </footer>
+ 
+-      <Toaster theme={darkMode ? 'dark' : 'light'} position="bottom-right" />
++      <Toaster theme={darkMode ? 'dark' : 'light'} position={isCompact ? 'top-center' : 'bottom-right'} />
+     </div>
+   );
+ }
+diff --git a/src/components/CaptionsPanel.tsx b/src/components/CaptionsPanel.tsx
+index 35beaf7..d8dd487 100644
+--- a/src/components/CaptionsPanel.tsx
++++ b/src/components/CaptionsPanel.tsx
+@@ -92,6 +92,7 @@ interface CaptionsPanelProps {
+   onCaptionsChange: (next: CaptionCue[]) => void;
+   onSeekTo: (time: number, autoPlay?: boolean) => void;
+   onOpenDeployGuide: () => void;
++  onRequestVideo: () => void;
+ }
+ 
+ const LANGUAGE_OPTIONS = [
+@@ -133,6 +134,7 @@ export function CaptionsPanel({
+   onCaptionsChange,
+   onSeekTo,
+   onOpenDeployGuide,
++  onRequestVideo,
+ }: CaptionsPanelProps) {
+   const [generating, setGenerating] = useState(false);
+   const [polishing, setPolishing] = useState(false);
+@@ -183,7 +185,8 @@ export function CaptionsPanel({
+ 
+   const handleAutoGenerate = async () => {
+     if (!videoFile) {
+-      setStatusMsg('Step 1: Drop or pick a video clip on the left first, or paste a script on the right.');
++      setStatusMsg('Choose a video first, then tap Auto-caption. You can also type or paste captions without one.');
++      onRequestVideo();
+       return;
+     }
+ 
+@@ -535,7 +538,7 @@ export function CaptionsPanel({
+         <div className="rounded-xl glass-subpanel p-4 space-y-3">
+           <div className="flex flex-wrap items-center justify-between gap-2">
+             <h2 className="font-heading text-sm font-bold text-foreground whitespace-nowrap">
+-              1. Auto-caption your video
++              Auto-caption from speech
+             </h2>
+             <span className="font-mono text-[11px] font-medium text-muted-foreground whitespace-nowrap shrink-0">
+               {capabilities === null
+@@ -547,7 +550,7 @@ export function CaptionsPanel({
+           </div>
+ 
+           <p className="text-xs text-muted-foreground leading-relaxed">
+-            Extracts word-level timestamps via Deepgram Nova-2, applying smart phrase breaks and pause hold times automatically.
++            Listens to your clip and times every word. Works with videos from your phone or computer.
+           </p>
+ 
+           <div className="space-y-1.5">
+@@ -588,7 +591,7 @@ export function CaptionsPanel({
+                 ? 'Transcribing speech…'
+                 : videoFile
+                   ? 'Auto-caption video'
+-                  : 'Generate with Deepgram'}
++                  : 'Choose a video to auto-caption'}
+             </span>
+           </Button>
+ 
+@@ -628,10 +631,10 @@ export function CaptionsPanel({
+         <div className="rounded-xl glass-subpanel p-4 flex flex-col justify-between space-y-3">
+           <div className="space-y-2">
+             <h2 className="font-heading text-sm font-bold text-foreground">
+-              2. Or paste, type, or import
++              Type, paste, or import
+             </h2>
+             <p className="text-xs text-muted-foreground leading-relaxed">
+-              Paste a voiceover script to pace evenly across your clip, insert lines at the playhead, or import an <code className="font-mono">.srt</code> subtitle file.
++              Paste a script or <code className="font-mono">.srt</code> text, add lines by hand, or import a subtitle file. No video needed to start.
+             </p>
+           </div>
+ 
+@@ -644,7 +647,7 @@ export function CaptionsPanel({
+               className="w-full font-semibold cursor-pointer"
+             >
+               <FileText className="w-4 h-4" aria-hidden="true" />
+-              <span>Paste script → Auto-time</span>
++              <span>Paste script or .srt text</span>
+             </Button>
+ 
+             <Button
+@@ -666,12 +669,12 @@ export function CaptionsPanel({
+               className="w-full cursor-pointer"
+             >
+               <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+-              <span>Import .srt subtitles</span>
++              <span>Import .srt file</span>
+             </Button>
+             <input
+               ref={srtInputRef}
+               type="file"
+-              accept=".srt,text/plain"
++              accept=".srt,application/x-subrip,text/plain"
+               tabIndex={-1}
+               aria-hidden="true"
+               className="sr-only"
+@@ -1193,15 +1196,15 @@ export function CaptionsPanel({
+         <DialogContent className="sm:max-w-md">
+           <DialogHeader>
+             <DialogTitle className="font-display font-bold">
+-              Paste script → Auto-time captions
++              Paste a script or .srt text
+             </DialogTitle>
+             <DialogDescription className="text-xs">
+-              Paste your voiceover or dialogue below. It will be split cleanly across your active trim window ({Math.max(2, Math.round((trimEnd > trimStart ? trimEnd - trimStart : duration || 10) * 10) / 10)}s) using smart phrase breaks.
++              Paste plain text and it is timed across your trim window ({Math.max(2, Math.round((trimEnd > trimStart ? trimEnd - trimStart : duration || 10) * 10) / 10)}s) with smart phrase breaks. Paste .srt text and its own timings are kept.
+             </DialogDescription>
+           </DialogHeader>
+           <div className="space-y-2 py-2">
+             <Label htmlFor="paste-script-textarea" className="text-xs">
+-              Voiceover script
++              Script or .srt text
+             </Label>
+             <Textarea
+               id="paste-script-textarea"
+@@ -1220,6 +1223,16 @@ export function CaptionsPanel({
+               onClick={() => {
+                 const clean = scriptDraft.trim();
+                 if (!clean) return;
++                if (clean.includes('-->')) {
++                  const fromSrt = parseSrt(clean, trimStart);
++                  if (fromSrt.length) {
++                    onCaptionsChange(fromSrt);
++                    setScriptDraft('');
++                    setScriptOpen(false);
++                    setStatusMsg(`Imported ${fromSrt.length} captions from pasted .srt text.`);
++                    return;
++                  }
++                }
+                 const spanEnd =
+                   trimEnd > trimStart
+                     ? trimEnd
+@@ -1236,7 +1249,7 @@ export function CaptionsPanel({
+                 );
+               }}
+             >
+-              Generate timed captions
++              Add captions
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+diff --git a/src/components/ExportPanel.tsx b/src/components/ExportPanel.tsx
+index a48d77c..3e8dbda 100644
+--- a/src/components/ExportPanel.tsx
++++ b/src/components/ExportPanel.tsx
+@@ -73,7 +73,7 @@ export function ExportPanel({
+ 
+   const handleExportVideo = async () => {
+     if (!videoLoaded || !videoRef.current) {
+-      setStatus('Load a video first in section 01.');
++      setStatus('Add a video in the Preview panel first.');
+       return;
+     }
+ 
+diff --git a/src/components/HowItWorksView.tsx b/src/components/HowItWorksView.tsx
+index 21e6853..ae96d91 100644
+--- a/src/components/HowItWorksView.tsx
++++ b/src/components/HowItWorksView.tsx
+@@ -46,7 +46,7 @@ export function HowItWorksView({ onOpenStudio }: { onOpenStudio: () => void }) {
+               <strong className="text-foreground">Upload &amp; frame:</strong> Drop an MP4 or WebM video onto the Video Stage (or load the sample clip), choose 9:16, 1:1, or 16:9, and set your trim window.
+             </li>
+             <li>
+-              <strong className="text-foreground">Deepgram Auto-Captions or manual:</strong> Click Generate with Deepgram to transcribe with word-level timestamps via <code className="font-mono">/api/transcribe</code>, use free browser listening, paste a script, import an <code className="font-mono">.srt</code>, or add rows manually.
++              <strong className="text-foreground">Deepgram Auto-Captions or manual:</strong> Choose a video from your phone or computer, then tap Auto-caption video to transcribe with word-level timestamps via <code className="font-mono">/api/transcribe</code>, use free browser listening, paste a script, import an <code className="font-mono">.srt</code>, or add rows manually.
+             </li>
+             <li>
+               <strong className="text-foreground">Tap any word &amp; Mercury 3 AI:</strong> Tap directly on any caption word inside the video stage to fix spelling, use Undo/Redo (<code className="font-mono">Ctrl+Z</code>), or run Inception Mercury 3 clean-up and translation on caption text.
+diff --git a/src/components/StylePanel.tsx b/src/components/StylePanel.tsx
+index 3272ea3..e56186b 100644
+--- a/src/components/StylePanel.tsx
++++ b/src/components/StylePanel.tsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useState } from 'react';
++import { useEffect, useState, type RefObject } from 'react';
+ import { BookmarkPlus, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
+ import { Alert, AlertDescription } from '@/components/ui/alert';
+ import { Button } from '@/components/ui/button';
+@@ -38,8 +38,11 @@ import {
+   type StyleConfig,
+ } from '../utils/captions';
+ import type { CloudStylePreset } from '../lib/firestoreService';
++import { useVideoFrame } from '../hooks/useVideoFrame';
+ 
+ interface StylePanelProps {
++  videoRef: RefObject<HTMLVideoElement | null>;
++  videoUrl: string | null;
+   styleConfig: StyleConfig;
+   previewConfig: StyleConfig | null;
+   previewLabel: string | null;
+@@ -230,6 +233,8 @@ function renderStyleSpecimen(styleId: string, accent: string, baseFontCss: strin
+ }
+ 
+ export function StylePanel({
++  videoRef,
++  videoUrl,
+   styleConfig,
+   previewConfig,
+   previewLabel,
+@@ -247,6 +252,7 @@ export function StylePanel({
+   const [presetMsg, setPresetMsg] = useState('');
+   const [animating, setAnimating] = useState(true);
+   const [loopElapsedSec, setLoopElapsedSec] = useState(0.45);
++  const videoFrame = useVideoFrame(videoRef, videoUrl);
+ 
+   const displayedConfig = previewConfig ?? styleConfig;
+   const activeFontMeta =
+@@ -320,7 +326,7 @@ export function StylePanel({
+       {/* Live Motion Audition Strip — always shows how styles/effects move BEFORE applying */}
+       <div
+         data-testid="live-style-preview"
+-        className="rounded-xl border border-border/90 bg-zinc-950 p-3.5 space-y-2.5 shadow-sm"
++        className="sticky top-[7.25rem] md:top-[4.5rem] lg:static z-20 rounded-xl border border-border/90 bg-zinc-950 p-3 lg:p-3.5 space-y-2 lg:space-y-2.5 shadow-[0_10px_24px_-12px_rgba(0,0,0,0.65)]"
+       >
+         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+           <div className="min-w-0 flex items-center gap-2">
+@@ -328,7 +334,14 @@ export function StylePanel({
+               {previewLabel ? `Previewing: ${previewLabel}` : `Applied: ${activeStyleMeta.label}`}
+             </span>
+             <span className="text-zinc-400 hidden sm:inline">
+-              {previewLabel ? '· Click card to apply' : '· Hover any card or effect below to audition'}
++              {previewLabel ? (
++                'Click to apply'
++              ) : (
++                <>
++                  <span className="pointer-coarse:hidden">Hover a card to audition</span>
++                  <span className="hidden pointer-coarse:inline">Tap a card to try it</span>
++                </>
++              )}
+             </span>
+           </div>
+           <div className="flex items-center gap-1 shrink-0">
+@@ -356,12 +369,29 @@ export function StylePanel({
+         </div>
+ 
+         <div
+-          className="relative min-h-[68px] rounded-lg border border-white/10 px-4 py-3 flex items-center justify-center overflow-hidden"
+-          style={{
+-            background:
+-              'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), rgba(9,9,11,0.96) 75%)',
+-          }}
++          className={`relative h-[124px] lg:h-auto lg:min-h-[96px] rounded-lg border border-white/10 px-4 flex justify-center overflow-hidden ${
++            displayedConfig.position === 'pos-centre'
++              ? 'items-center'
++              : displayedConfig.position === 'pos-third'
++                ? 'items-end pb-[24%]'
++                : 'items-end pb-3'
++          }`}
++          style={
++            videoFrame
++              ? {
++                  backgroundImage: `linear-gradient(to top, rgba(0,0,0,0.5), rgba(0,0,0,0.04) 60%), url(${videoFrame})`,
++                  backgroundSize: 'cover',
++                  backgroundPosition: 'center',
++                }
++              : {
++                  background:
++                    'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), rgba(9,9,11,0.96) 75%)',
++                }
++          }
+         >
++          <span className="absolute left-2 top-1.5 text-[11px] text-white/75 bg-black/45 rounded px-1.5 py-0.5">
++            {videoFrame ? 'On your video' : 'Sample backdrop'}
++          </span>
+           <div
+             className={`text-center leading-tight ${displayedConfig.style}`}
+             style={{
+@@ -462,7 +492,7 @@ export function StylePanel({
+               <span>Curated signature combinations</span>
+             </Label>
+             <p className="text-[11px] text-muted-foreground">
+-              Hover any card to audition live on your video before applying.
++              <span className="pointer-coarse:hidden">Hover a card to audition it on your video before applying.</span><span className="hidden pointer-coarse:inline">Tap a card to see it in the preview above.</span>
+             </p>
+           </div>
+           <div className="inline-flex items-center gap-1">
+@@ -536,7 +566,7 @@ export function StylePanel({
+             Reveal Category &amp; Entrance Animation
+           </h3>
+           <p className="text-[11px] text-muted-foreground">
+-            Hover any reveal mode or entrance effect to watch how it animates before you apply.
++            <span className="pointer-coarse:hidden">Hover a reveal mode or entrance effect to watch it animate before you apply.</span><span className="hidden pointer-coarse:inline">Tap a reveal mode or entrance effect to watch it animate in the preview above.</span>
+           </p>
+         </div>
+ 
+diff --git a/src/components/VideoStage.tsx b/src/components/VideoStage.tsx
+index 3e1de31..99d0e04 100644
+--- a/src/components/VideoStage.tsx
++++ b/src/components/VideoStage.tsx
+@@ -1,5 +1,5 @@
+ import React, { useRef, useState } from 'react';
+-import { Eye, Film, Mic2, Pause, PencilLine, Play, Repeat, Sparkles, Upload, Volume2 } from 'lucide-react';
++import { Camera, Eye, Film, Mic2, Pause, PencilLine, Play, Repeat, Sparkles, Upload, Volume2 } from 'lucide-react';
+ import { Button } from '@/components/ui/button';
+ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+ import {
+@@ -38,6 +38,7 @@ import type { NoiseCleanStrength } from '../utils/audioEngine';
+ 
+ interface VideoStageProps {
+   videoRef: React.RefObject<HTMLVideoElement | null>;
++  videoPickerRef: React.RefObject<HTMLInputElement | null>;
+   videoUrl: string | null;
+   fileInfo: string;
+   duration: number;
+@@ -82,6 +83,7 @@ interface VideoStageProps {
+ 
+ export function VideoStage({
+   videoRef,
++  videoPickerRef,
+   videoUrl,
+   fileInfo,
+   duration,
+@@ -127,7 +129,8 @@ export function VideoStage({
+   const [lastEditingId, setLastEditingId] = useState<string | null>(null);
+   const [dragActive, setDragActive] = useState(false);
+   const [showSafeGuides, setShowSafeGuides] = useState(false);
+-  const fileInputRef = useRef<HTMLInputElement | null>(null);
++  const fileInputRef = videoPickerRef;
++  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+ 
+   if (editingCue && editingCue.id !== lastEditingId) {
+     setLastEditingId(editingCue.id);
+@@ -151,9 +154,9 @@ export function VideoStage({
+ 
+   const stageAspectClass =
+     aspect === 'r916'
+-      ? 'aspect-[9/16] max-w-[320px]'
++      ? 'aspect-[9/16] max-w-[min(320px,calc(52svh*0.5625))] lg:max-w-[320px]'
+       : aspect === 'r11'
+-        ? 'aspect-square max-w-[400px]'
++        ? 'aspect-square max-w-[min(400px,52svh)] lg:max-w-[400px]'
+         : 'aspect-video max-w-full';
+ 
+   const handleOpenActiveFix = () => {
+@@ -200,46 +203,51 @@ export function VideoStage({
+           <div className="flex flex-wrap items-start justify-between gap-3">
+             <div>
+               <CardTitle>
+-                <h2 className="font-display text-lg font-bold">01. Video Stage</h2>
++                <h2 className="font-display text-lg font-bold">Preview</h2>
+               </CardTitle>
+               <CardDescription className="text-xs tabular-nums mt-0.5">
+-                {previewLabel ? `Auditioning: ${previewLabel} (hover preview)` : fileInfo}
++                {previewLabel ? `Auditioning: ${previewLabel}` : fileInfo}
+               </CardDescription>
+             </div>
+-            <div className="flex items-center gap-2">
++            {videoUrl && (
+               <Button
+                 type="button"
+                 variant="outline"
+                 size="sm"
+-                disabled={loadingSample}
+-                onClick={onLoadSampleClip}
+-                className="cursor-pointer whitespace-nowrap"
+-              >
+-                {loadingSample ? 'Creating…' : 'Load sample clip'}
+-              </Button>
+-              <Button
+-                type="button"
+-                size="sm"
+                 onClick={() => fileInputRef.current?.click()}
+-                className="cursor-pointer whitespace-nowrap font-semibold"
++                className="cursor-pointer whitespace-nowrap"
+               >
+                 <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+-                <span>Pick video</span>
++                <span>Change video</span>
+               </Button>
+-              <input
+-                ref={fileInputRef}
+-                type="file"
+-                accept="video/mp4,video/webm,video/*"
+-                tabIndex={-1}
+-                aria-hidden="true"
+-                className="sr-only"
+-                onChange={(e) => {
+-                  const file = e.target.files?.[0];
+-                  if (file) onFileSelected(file);
+-                  e.target.value = '';
+-                }}
+-              />
+-            </div>
++            )}
++            <input
++              ref={fileInputRef}
++              type="file"
++              accept="video/*,.mp4,.mov,.m4v,.webm"
++              tabIndex={-1}
++              aria-hidden="true"
++              className="sr-only"
++              onChange={(e) => {
++                const file = e.target.files?.[0];
++                if (file) onFileSelected(file);
++                e.target.value = '';
++              }}
++            />
++            <input
++              ref={cameraInputRef}
++              type="file"
++              accept="video/*"
++              capture="user"
++              tabIndex={-1}
++              aria-hidden="true"
++              className="sr-only"
++              onChange={(e) => {
++                const file = e.target.files?.[0];
++                if (file) onFileSelected(file);
++                e.target.value = '';
++              }}
++            />
+           </div>
+         </CardHeader>
+ 
+@@ -269,18 +277,23 @@ export function VideoStage({
+                 className="w-full h-full object-cover block"
+               />
+             ) : (
+-              <div className="w-full h-full min-h-[260px] flex flex-col items-center justify-center text-center p-6 text-zinc-300">
++              <div className="w-full h-full min-h-[260px] flex flex-col items-center justify-center text-center p-5 text-zinc-300">
+                 <div className="w-11 h-11 rounded-xl border border-zinc-800 bg-zinc-900/90 flex items-center justify-center mb-3">
+                   <Film className="w-5 h-5 text-zinc-200" aria-hidden="true" />
+                 </div>
+-                <p className="text-sm font-semibold text-white">Drop video or .srt here</p>
+-                <p className="text-xs text-zinc-400 mt-1 max-w-xs leading-relaxed">
+-                  Drag an MP4 or WebM clip onto this stage, pick a file from your device, or launch the instant sample clip.
++                <p className="text-sm font-semibold text-white">Add your video</p>
++                <p className="text-xs text-zinc-300 mt-1 max-w-[16rem] leading-relaxed">
++                  <span className="pointer-fine:hidden">
++                    Pick a clip from your phone or record a new one. Captions are added next.
++                  </span>
++                  <span className="hidden pointer-fine:inline">
++                    Drag a video or .srt file onto this frame, or pick a clip from your computer.
++                  </span>
+                 </p>
+-                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
++                <div className="mt-4 flex w-full max-w-[15rem] flex-col gap-2">
+                   <Button
+                     type="button"
+-                    size="sm"
++                    size="lg"
+                     onClick={() => fileInputRef.current?.click()}
+                     className="cursor-pointer font-semibold"
+                   >
+@@ -290,12 +303,22 @@ export function VideoStage({
+                   <Button
+                     type="button"
+                     variant="outline"
+-                    size="sm"
++                    size="lg"
++                    onClick={() => cameraInputRef.current?.click()}
++                    className="cursor-pointer border-zinc-700 bg-zinc-900/80 text-zinc-100 hover:bg-zinc-800 pointer-fine:hidden"
++                  >
++                    <Camera className="w-3.5 h-3.5" aria-hidden="true" />
++                    <span>Record with camera</span>
++                  </Button>
++                  <Button
++                    type="button"
++                    variant="ghost"
++                    size="lg"
+                     disabled={loadingSample}
+                     onClick={onLoadSampleClip}
+-                    className="cursor-pointer border-zinc-700 bg-zinc-900/80 text-zinc-100 hover:bg-zinc-800"
++                    className="cursor-pointer text-zinc-200 hover:bg-zinc-800 hover:text-white"
+                   >
+-                    {loadingSample ? 'Creating…' : 'Try sample clip'}
++                    {loadingSample ? 'Creating sample…' : 'Try a sample clip'}
+                   </Button>
+                 </div>
+               </div>
+@@ -338,7 +361,7 @@ export function VideoStage({
+               </div>
+             )}
+ 
+-            {activeCue && words.length > 0 && (() => {
++            {videoUrl && activeCue && words.length > 0 && (() => {
+               const containerSpec = getCaptionContainerSpec(styleConfig.style);
+               const cueElapsed = Math.max(0, currentTime - activeCue.start);
+               const cueDuration = Math.max(0.2, activeCue.end - activeCue.start);
+@@ -527,7 +550,7 @@ export function VideoStage({
+             />
+             <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
+               <span>Scrub timeline</span>
+-              <span>Space: Play · ←/→: ±1s · Ctrl+Z: Undo</span>
++              <span className="hidden pointer-fine:inline">Space: Play · ←/→: ±1s · Ctrl+Z: Undo</span>
+             </div>
+           </div>
+ 
+diff --git a/src/hooks/useMediaQuery.ts b/src/hooks/useMediaQuery.ts
+new file mode 100644
+index 0000000..fc88978
+--- /dev/null
++++ b/src/hooks/useMediaQuery.ts
+@@ -0,0 +1,31 @@
++import { useEffect, useState } from 'react';
++
++/** Subscribes to a CSS media query. Returns `fallback` during SSR / first paint. */
++export function useMediaQuery(query: string, fallback = false): boolean {
++  const [matches, setMatches] = useState(() =>
++    typeof window !== 'undefined' && window.matchMedia
++      ? window.matchMedia(query).matches
++      : fallback
++  );
++
++  useEffect(() => {
++    if (typeof window === 'undefined' || !window.matchMedia) return;
++    const mql = window.matchMedia(query);
++    const onChange = () => setMatches(mql.matches);
++    onChange();
++    mql.addEventListener('change', onChange);
++    return () => mql.removeEventListener('change', onChange);
++  }, [query]);
++
++  return matches;
++}
++
++/** True on phones/tablets where the primary input is a finger (no hover). */
++export function useIsTouch(): boolean {
++  return useMediaQuery('(pointer: coarse)');
++}
++
++/** True below the `lg` breakpoint, where the studio collapses to one column. */
++export function useIsCompactLayout(): boolean {
++  return useMediaQuery('(max-width: 1023px)');
++}
+diff --git a/src/hooks/useVideoFrame.ts b/src/hooks/useVideoFrame.ts
+new file mode 100644
+index 0000000..f2534fc
+--- /dev/null
++++ b/src/hooks/useVideoFrame.ts
+@@ -0,0 +1,52 @@
++import { useEffect, useState, type RefObject } from 'react';
++
++/**
++ * Captures the current frame of the studio <video> as a small JPEG data URL so
++ * previews (e.g. caption style audition) can render on the user's real footage.
++ * Re-captures whenever the user scrubs or the clip finishes loading.
++ */
++export function useVideoFrame(
++  videoRef: RefObject<HTMLVideoElement | null>,
++  videoUrl: string | null,
++  maxWidth = 480
++): string | null {
++  const [frame, setFrame] = useState<string | null>(null);
++
++  useEffect(() => {
++    const vid = videoRef.current;
++    if (!vid || !videoUrl) {
++      setFrame(null);
++      return;
++    }
++
++    let cancelled = false;
++    const capture = () => {
++      if (cancelled || vid.readyState < 2 || !vid.videoWidth || !vid.videoHeight) return;
++      try {
++        const scale = Math.min(1, maxWidth / vid.videoWidth);
++        const canvas = document.createElement('canvas');
++        canvas.width = Math.round(vid.videoWidth * scale);
++        canvas.height = Math.round(vid.videoHeight * scale);
++        const ctx = canvas.getContext('2d');
++        if (!ctx) return;
++        ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
++        setFrame(canvas.toDataURL('image/jpeg', 0.72));
++      } catch {
++        setFrame(null);
++      }
++    };
++
++    capture();
++    vid.addEventListener('loadeddata', capture);
++    vid.addEventListener('seeked', capture);
++    vid.addEventListener('pause', capture);
++    return () => {
++      cancelled = true;
++      vid.removeEventListener('loadeddata', capture);
++      vid.removeEventListener('seeked', capture);
++      vid.removeEventListener('pause', capture);
++    };
++  }, [videoRef, videoUrl, maxWidth]);
++
++  return frame;
++}
+diff --git a/src/index.css b/src/index.css
+index 0e3c5d7..dc7300f 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -339,4 +339,48 @@
+   --sidebar-accent-foreground: oklch(0.985 0.002 285);
+   --sidebar-border: oklch(1 0 0 / 0.11);
+   --sidebar-ring: oklch(0.99 0 0);
+-}
+\ No newline at end of file
++}
++/* Browser surfaces themed from the palette instead of platform defaults */
++::selection {
++  background: color-mix(in oklch, var(--foreground) 24%, transparent);
++}
++
++input,
++textarea {
++  caret-color: var(--foreground);
++}
++
++/*
++ * Touch ergonomics. On phones and tablets the primary input is a finger, so
++ * controls get a 44px target, sliders get a thumb you can actually grab, and
++ * the smallest helper text steps up to a legible 12px.
++ */
++@media (pointer: coarse) {
++  [data-slot="button"],
++  [data-slot="tabs-trigger"],
++  button[aria-pressed]:not(.w) {
++    min-height: 2.75rem;
++  }
++
++  [data-slot="button"]:has(> svg:only-child) {
++    min-width: 2.75rem;
++  }
++
++  [data-slot="slider"] > div:first-child {
++    min-height: 2.75rem;
++  }
++
++  [data-slot="slider-track"] {
++    height: 0.375rem;
++  }
++
++  [data-slot="slider-thumb"] {
++    width: 1.375rem;
++    height: 1.375rem;
++  }
++
++  .text-\[11px\],
++  .text-\[10px\] {
++    font-size: 0.75rem;
++  }
++}
+-- 
+2.43.0
+

@@ -73,7 +73,7 @@ export function ExportPanel({
 
   const handleExportVideo = async () => {
     if (!videoLoaded || !videoRef.current) {
-      setStatus('Load a video first in section 01.');
+      setStatus('Add a video in the Preview panel first.');
       return;
     }
 

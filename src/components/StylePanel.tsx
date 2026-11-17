@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { BookmarkPlus, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
+import { useEffect, useState, type RefObject } from 'react';
+import { BookmarkPlus, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,14 +32,15 @@ import {
   type CaptionFont,
   type CaptionPosition,
   type CaptionStyleCategory,
-  type EntranceEffect,
   type PageLayoutMode,
-  type RevealMode,
   type StyleConfig,
 } from '../utils/captions';
 import type { CloudStylePreset } from '../lib/firestoreService';
+import { useVideoFrame } from '../hooks/useVideoFrame';
 
 interface StylePanelProps {
+  videoRef: RefObject<HTMLVideoElement | null>;
+  videoUrl: string | null;
   styleConfig: StyleConfig;
   previewConfig: StyleConfig | null;
   previewLabel: string | null;
@@ -53,22 +54,13 @@ interface StylePanelProps {
   onSignInPrompt: () => void;
 }
 
-const CATEGORY_GROUPS: { key: CaptionStyleCategory; title: string; subtitle: string }[] = [
-  {
-    key: 'simple',
-    title: 'Simple & clean (no heavy boxes)',
-    subtitle: 'Normal subtitles, clean readable typography, zero or subtle cinema bar',
-  },
-  {
-    key: 'font-switch',
-    title: 'Dynamic font-switch (changes on the spoken beat)',
-    subtitle: 'Font face, slant, or display weight shifts at the exact moment each word plays',
-  },
-  {
-    key: 'creator',
-    title: 'Bold creator highlights',
-    subtitle: 'High-retention Reels, Shorts, and TikTok styles with scale, bounce, and glow',
-  },
+type StyleBrowseTab = 'signature' | CaptionStyleCategory;
+
+const STYLE_BROWSE_TABS: { id: StyleBrowseTab; label: string }[] = [
+  { id: 'signature', label: 'Signature' },
+  { id: 'simple', label: 'Simple' },
+  { id: 'font-switch', label: 'Font switch' },
+  { id: 'creator', label: 'Bold creator' },
 ];
 
 const POSITION_OPTIONS: { value: CaptionPosition; label: string }[] = [
@@ -230,6 +222,8 @@ function renderStyleSpecimen(styleId: string, accent: string, baseFontCss: strin
 }
 
 export function StylePanel({
+  videoRef,
+  videoUrl,
   styleConfig,
   previewConfig,
   previewLabel,
@@ -247,13 +241,14 @@ export function StylePanel({
   const [presetMsg, setPresetMsg] = useState('');
   const [animating, setAnimating] = useState(true);
   const [loopElapsedSec, setLoopElapsedSec] = useState(0.45);
+  const [styleTab, setStyleTab] = useState<StyleBrowseTab>('signature');
+  const videoFrame = useVideoFrame(videoRef, videoUrl);
 
   const displayedConfig = previewConfig ?? styleConfig;
   const activeFontMeta =
     CAPTION_FONT_OPTIONS.find((f) => f.id === displayedConfig.fontFamily) ?? CAPTION_FONT_OPTIONS[0];
   const effectiveReveal = resolveEffectiveReveal(displayedConfig);
   const effectiveEffect = resolveEffectiveEffect(displayedConfig);
-  const pageLayout: PageLayoutMode = displayedConfig.pageLayout ?? 'replace';
   const blendMode: CaptionBlendMode = displayedConfig.blendMode ?? 'normal';
   const spotlightAuto = displayedConfig.spotlightAuto ?? true;
   const wordSpacingEm = clampWordSpacing(displayedConfig.wordSpacing);
@@ -287,6 +282,7 @@ export function StylePanel({
     const nextIdx = (idx + dir + CAPTION_STYLE_CATALOG.length) % CAPTION_STYLE_CATALOG.length;
     const chosen = CAPTION_STYLE_CATALOG[nextIdx];
     onPreviewChange(null);
+    setStyleTab(chosen.category);
     onChange({
       ...styleConfig,
       style: chosen.id,
@@ -316,52 +312,74 @@ export function StylePanel({
   };
 
   return (
-    <div className="space-y-5 @container/style">
+    <div className="space-y-4 @container/style">
       {/* Live Motion Audition Strip — always shows how styles/effects move BEFORE applying */}
       <div
         data-testid="live-style-preview"
-        className="rounded-xl border border-border/90 bg-zinc-950 p-3.5 space-y-2.5 shadow-sm"
+        className="sticky top-2 md:top-[4.5rem] lg:static z-20 rounded-xl border border-border/90 bg-zinc-950 p-2.5 lg:p-3 space-y-1.5 shadow-[0_10px_24px_-12px_rgba(0,0,0,0.65)]"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+        <div className="flex items-center justify-between gap-2 text-[11px]">
           <div className="min-w-0 flex items-center gap-2">
             <span className="font-semibold text-white truncate">
               {previewLabel ? `Previewing: ${previewLabel}` : `Applied: ${activeStyleMeta.label}`}
             </span>
             <span className="text-zinc-400 hidden sm:inline">
-              {previewLabel ? '· Click card to apply' : '· Hover any card or effect below to audition'}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => setAnimating((a) => !a)}
-              aria-label={animating ? 'Pause motion preview' : 'Play motion preview'}
-              className="text-zinc-300 hover:text-white hover:bg-zinc-800 cursor-pointer h-6 px-2"
-            >
-              {animating ? (
-                <>
-                  <Pause className="w-3 h-3" aria-hidden="true" />
-                  <span>Freeze</span>
-                </>
+              {previewLabel ? (
+                'Click to apply'
               ) : (
                 <>
-                  <Play className="w-3 h-3" aria-hidden="true" />
-                  <span>Animate</span>
+                  <span className="pointer-coarse:hidden">Hover card to audition</span>
+                  <span className="hidden pointer-coarse:inline">Tap card to audition</span>
                 </>
               )}
-            </Button>
+            </span>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => setAnimating((a) => !a)}
+            aria-label={animating ? 'Pause motion preview' : 'Play motion preview'}
+            className="text-zinc-300 hover:text-white hover:bg-zinc-800 cursor-pointer h-6 px-2 shrink-0"
+          >
+            {animating ? (
+              <>
+                <Pause className="w-3 h-3" aria-hidden="true" />
+                <span>Freeze</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3 h-3" aria-hidden="true" />
+                <span>Animate</span>
+              </>
+            )}
+          </Button>
         </div>
 
         <div
-          className="relative min-h-[68px] rounded-lg border border-white/10 px-4 py-3 flex items-center justify-center overflow-hidden"
-          style={{
-            background:
-              'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), rgba(9,9,11,0.96) 75%)',
-          }}
+          className={`relative h-[104px] lg:h-auto lg:min-h-[90px] rounded-lg border border-white/10 px-4 flex justify-center overflow-hidden ${
+            displayedConfig.position === 'pos-centre'
+              ? 'items-center'
+              : displayedConfig.position === 'pos-third'
+                ? 'items-end pb-[22%]'
+                : 'items-end pb-2.5'
+          }`}
+          style={
+            videoFrame
+              ? {
+                  backgroundImage: `linear-gradient(to top, rgba(0,0,0,0.5), rgba(0,0,0,0.04) 60%), url(${videoFrame})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : {
+                  background:
+                    'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), rgba(9,9,11,0.96) 75%)',
+                }
+          }
         >
+          <span className="absolute left-2 top-1.5 text-[11px] text-white/75 bg-black/45 rounded px-1.5 py-0.5">
+            {videoFrame ? 'On your video' : 'Sample backdrop'}
+          </span>
           <div
             className={`text-center leading-tight ${displayedConfig.style}`}
             style={{
@@ -372,7 +390,6 @@ export function StylePanel({
             {(() => {
               const wordNodes = previewWords
                 .map((word, idx) => {
-                  const isOn = idx === activeWordIdx;
                   const isKey = isWordSpotlightKey(word, cueForPreview, spotlightAuto);
                   const spec = getWordVisualSpec({
                     style: displayedConfig.style,
@@ -453,18 +470,35 @@ export function StylePanel({
         </div>
       </div>
 
-      {/* Flagship VideoCaptions.ai Curated Preset Packs with Hover Audition */}
+      {/* Look Picker with Category Tabs (eliminates the 15-card scroll wall) */}
       <div className="space-y-2.5" onMouseLeave={() => onPreviewChange(null)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-              <span>Curated signature combinations</span>
-            </Label>
-            <p className="text-[11px] text-muted-foreground">
-              Hover any card to audition live on your video before applying.
-            </p>
+          <div
+            role="tablist"
+            aria-label="Caption style categories"
+            className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/70 p-0.5 border border-border"
+          >
+            {STYLE_BROWSE_TABS.map((tab) => {
+              const selected = styleTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setStyleTab(tab.id)}
+                  className={`cap-word-chip px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                    selected
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
+
           <div className="inline-flex items-center gap-1">
             <Button
               type="button"
@@ -491,57 +525,233 @@ export function StylePanel({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 @sm/style:grid-cols-2 @md/style:grid-cols-3 gap-2">
-          {CURATED_PRESET_PACKS.map((pack) => {
-            const isActive =
-              styleConfig.style === pack.apply.style &&
-              resolveEffectiveReveal(styleConfig) === (pack.apply.revealMode ?? resolveEffectiveReveal(styleConfig)) &&
-              resolveEffectiveEffect(styleConfig) === (pack.apply.effect ?? resolveEffectiveEffect(styleConfig)) &&
-              (styleConfig.blendMode ?? 'normal') === (pack.apply.blendMode ?? 'normal');
-            const candidate = { ...styleConfig, ...pack.apply };
-            return (
-              <button
-                key={pack.id}
-                type="button"
-                aria-pressed={isActive}
-                onMouseEnter={() => onPreviewChange(candidate, pack.label)}
-                onFocus={() => onPreviewChange(candidate, pack.label)}
-                onBlur={() => onPreviewChange(null)}
-                onClick={() => {
-                  onPreviewChange(null);
-                  onChange(candidate);
-                }}
-                className={`px-3 py-2.5 rounded-xl text-left border transition-colors cursor-pointer ${
-                  isActive
-                    ? 'border-primary bg-accent/70 text-foreground'
-                    : 'border-border/70 glass-subpanel hover:bg-card/85 hover:border-white/35 text-foreground'
-                }`}
-              >
-                <div className="text-xs font-bold">{pack.label}</div>
-                <div className="text-[11px] text-muted-foreground leading-snug mt-0.5">
-                  {pack.subtitle}
-                </div>
-              </button>
-            );
-          })}
+        {styleTab === 'signature' ? (
+          <div className="grid grid-cols-1 @sm/style:grid-cols-2 @md/style:grid-cols-3 gap-2">
+            {CURATED_PRESET_PACKS.map((pack) => {
+              const isActive =
+                styleConfig.style === pack.apply.style &&
+                resolveEffectiveReveal(styleConfig) === (pack.apply.revealMode ?? resolveEffectiveReveal(styleConfig)) &&
+                resolveEffectiveEffect(styleConfig) === (pack.apply.effect ?? resolveEffectiveEffect(styleConfig)) &&
+                (styleConfig.blendMode ?? 'normal') === (pack.apply.blendMode ?? 'normal');
+              const candidate = { ...styleConfig, ...pack.apply };
+              return (
+                <button
+                  key={pack.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  onMouseEnter={() => onPreviewChange(candidate, pack.label)}
+                  onFocus={() => onPreviewChange(candidate, pack.label)}
+                  onBlur={() => onPreviewChange(null)}
+                  onClick={() => {
+                    onPreviewChange(null);
+                    onChange(candidate);
+                  }}
+                  className={`px-3 py-2 rounded-lg text-left border transition-colors cursor-pointer ${
+                    isActive
+                      ? 'border-primary bg-accent/70 text-foreground'
+                      : 'border-border/75 bg-background/40 hover:bg-accent/35 text-foreground'
+                  }`}
+                >
+                  <div className="text-xs font-bold">{pack.label}</div>
+                  <div className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-1">
+                    {pack.subtitle}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            role="group"
+            aria-label={STYLE_BROWSE_TABS.find((t) => t.id === styleTab)?.label}
+            className="grid grid-cols-1 @sm/style:grid-cols-2 gap-2"
+          >
+            {CAPTION_STYLE_CATALOG.filter((s) => s.category === styleTab).map((opt) => {
+              const active = styleConfig.style === opt.id;
+              const candidate: StyleConfig = {
+                ...styleConfig,
+                style: opt.id,
+                revealMode: opt.defaultReveal,
+                effect: opt.defaultEffect,
+                ...(opt.defaultFont ? { fontFamily: opt.defaultFont } : {}),
+              };
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  aria-pressed={active}
+                  onMouseEnter={() => onPreviewChange(candidate, opt.label)}
+                  onFocus={() => onPreviewChange(candidate, opt.label)}
+                  onBlur={() => onPreviewChange(null)}
+                  onClick={() => {
+                    onPreviewChange(null);
+                    onChange(candidate);
+                  }}
+                  className={`min-h-[52px] px-3 py-2 rounded-lg text-left border transition-colors cursor-pointer flex items-center justify-between gap-2 ${
+                    active
+                      ? 'border-primary bg-accent/70 text-foreground'
+                      : 'border-border/75 bg-background/40 hover:bg-accent/35 text-foreground'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate">{opt.label}</div>
+                    <div className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-1">
+                      {opt.desc}
+                    </div>
+                  </div>
+                  <div
+                    className="shrink-0 rounded bg-zinc-950/90 border border-white/10 px-2 py-1 text-[11px] leading-none"
+                    aria-hidden="true"
+                  >
+                    {renderStyleSpecimen(opt.id, displayedConfig.accentColor, activeFontMeta.cssFamily)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <Separator />
+
+      {/* Size, Word Spacing & Typography */}
+      <div className="space-y-3.5">
+        <div className="grid grid-cols-1 @md/style:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-font-size">Text size</Label>
+              <span className="font-mono text-muted-foreground tabular-nums">
+                {styleConfig.fontSize}px
+              </span>
+            </div>
+            <Slider
+              id="caption-font-size"
+              aria-label="Text size"
+              min={14}
+              max={38}
+              step={1}
+              value={[styleConfig.fontSize]}
+              onValueChange={(val) => {
+                const next = Array.isArray(val) ? val[0] : val;
+                if (typeof next === 'number') {
+                  onChange({ ...styleConfig, fontSize: next });
+                }
+              }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-word-spacing">Word spacing</Label>
+              <div className="flex items-center gap-2">
+                {clampWordSpacing(styleConfig.wordSpacing) !== 0.26 && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...styleConfig, wordSpacing: 0.26 })}
+                    className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 cursor-pointer"
+                    title="Reset word spacing to default (0.26em)"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" aria-hidden="true" />
+                    <span>Reset</span>
+                  </button>
+                )}
+                <span className="font-mono text-muted-foreground tabular-nums">
+                  {clampWordSpacing(styleConfig.wordSpacing).toFixed(2)}em
+                </span>
+              </div>
+            </div>
+            <Slider
+              id="caption-word-spacing"
+              aria-label="Word spacing"
+              min={0.06}
+              max={0.9}
+              step={0.02}
+              value={[clampWordSpacing(styleConfig.wordSpacing)]}
+              onValueChange={(val) => {
+                const next = Array.isArray(val) ? val[0] : val;
+                if (typeof next === 'number') {
+                  onChange({ ...styleConfig, wordSpacing: clampWordSpacing(next) });
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 @sm/style:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <span className="block text-xs font-semibold text-foreground">Position</span>
+            <div
+              role="group"
+              aria-label="Vertical position"
+              className="grid grid-cols-3 rounded-lg bg-muted/70 p-0.5 border border-border"
+            >
+              {POSITION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={styleConfig.position === opt.value}
+                  onClick={() => onChange({ ...styleConfig, position: opt.value })}
+                  className={`cap-word-chip py-1.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                    styleConfig.position === opt.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label === 'Lower third' ? 'Lower' : opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="caption-font-trigger" className="text-xs font-semibold">
+              Base font
+            </Label>
+            <Select
+              value={styleConfig.fontFamily}
+              onValueChange={(val) => {
+                if (val) onChange({ ...styleConfig, fontFamily: val as CaptionFont });
+              }}
+            >
+              <SelectTrigger id="caption-font-trigger" className="w-full h-9 bg-background text-xs">
+                <SelectValue>{activeFontMeta.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {CAPTION_FONT_OPTIONS.map((font) => (
+                  <SelectItem key={font.id} value={font.id}>
+                    {font.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="caption-accent-color" className="text-xs font-semibold">
+              Accent colour
+            </Label>
+            <div className="flex items-center gap-2.5">
+              <input
+                id="caption-accent-color"
+                type="color"
+                value={styleConfig.accentColor}
+                onChange={(e) => onChange({ ...styleConfig, accentColor: e.target.value })}
+                className="w-11 h-9 p-1 rounded-lg border border-input bg-background cursor-pointer"
+              />
+              <span className="font-mono text-xs text-muted-foreground uppercase tabular-nums">
+                {styleConfig.accentColor}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       <Separator />
 
-      {/* Two-Axis Customizer: Visible Interactive Chips with Hover Audition */}
-      <div className="rounded-xl glass-subpanel p-3.5 space-y-4" onMouseLeave={() => onPreviewChange(null)}>
-        <div>
-          <h3 className="font-heading text-xs font-bold text-foreground">
-            Reveal Category &amp; Entrance Animation
-          </h3>
-          <p className="text-[11px] text-muted-foreground">
-            Hover any reveal mode or entrance effect to watch how it animates before you apply.
-          </p>
-        </div>
-
+      {/* Motion, Reveal & Layout Behaviour */}
+      <div className="space-y-3" onMouseLeave={() => onPreviewChange(null)}>
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Reveal category</Label>
+          <Label className="text-xs font-semibold">Word reveal</Label>
           <div role="group" aria-label="Reveal category" className="flex flex-wrap gap-1.5">
             {REVEAL_MODE_OPTIONS.map((opt) => {
               const active = resolveEffectiveReveal(styleConfig) === opt.id;
@@ -559,10 +769,10 @@ export function StylePanel({
                     onPreviewChange(null);
                     onChange(candidate);
                   }}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`cap-word-chip px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     active
                       ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background/55 text-muted-foreground border-border/80 hover:text-foreground hover:border-white/35'
+                      : 'bg-background/50 text-muted-foreground border-border/80 hover:text-foreground'
                   }`}
                 >
                   {opt.label}
@@ -590,10 +800,10 @@ export function StylePanel({
                     onPreviewChange(null);
                     onChange(candidate);
                   }}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`cap-word-chip px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     active
                       ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background/55 text-muted-foreground border-border/80 hover:text-foreground hover:border-white/35'
+                      : 'bg-background/50 text-muted-foreground border-border/80 hover:text-foreground'
                   }`}
                 >
                   {opt.label}
@@ -603,8 +813,8 @@ export function StylePanel({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 @sm/style:grid-cols-3 gap-3 pt-1">
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/50 px-2.5 py-2">
+        <div className="grid grid-cols-1 @sm/style:grid-cols-3 gap-2.5 pt-1">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/40 px-2.5 py-2">
             <Label htmlFor="spotlight-auto-switch" className="text-xs font-medium cursor-pointer">
               Auto Spotlight
             </Label>
@@ -617,7 +827,7 @@ export function StylePanel({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/50 px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/40 px-2.5 py-2">
             <span className="text-xs font-medium text-foreground">Pages</span>
             <div className="inline-flex items-center gap-0.5 rounded bg-muted p-0.5">
               {(['replace', 'stack'] as const).map((mode) => (
@@ -626,7 +836,7 @@ export function StylePanel({
                   type="button"
                   aria-pressed={(styleConfig.pageLayout ?? 'replace') === mode}
                   onClick={() => onChange({ ...styleConfig, pageLayout: mode })}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer capitalize whitespace-nowrap ${
+                  className={`cap-word-chip px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer capitalize whitespace-nowrap ${
                     (styleConfig.pageLayout ?? 'replace') === mode
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -638,7 +848,7 @@ export function StylePanel({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/50 px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/40 px-2.5 py-2">
             <span className="text-xs font-medium text-foreground">Blend</span>
             <div className="inline-flex items-center gap-0.5 rounded bg-muted p-0.5">
               {(['normal', 'difference'] as const).map((bm) => (
@@ -656,7 +866,7 @@ export function StylePanel({
                     onPreviewChange(null);
                     onChange({ ...styleConfig, blendMode: bm });
                   }}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer capitalize whitespace-nowrap ${
+                  className={`cap-word-chip px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer capitalize whitespace-nowrap ${
                     (styleConfig.blendMode ?? 'normal') === bm
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -670,207 +880,15 @@ export function StylePanel({
         </div>
       </div>
 
-      {/* Text Size & Adjustable Word Spacing */}
-      <div className="grid grid-cols-1 @md/style:grid-cols-2 gap-4 rounded-xl glass-subpanel p-3.5">
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <Label htmlFor="caption-font-size">Text size</Label>
-            <span className="font-mono text-muted-foreground tabular-nums">
-              {styleConfig.fontSize}px
-            </span>
-          </div>
-          <Slider
-            id="caption-font-size"
-            aria-label="Text size"
-            min={14}
-            max={38}
-            step={1}
-            value={[styleConfig.fontSize]}
-            onValueChange={(val) => {
-              const next = Array.isArray(val) ? val[0] : val;
-              if (typeof next === 'number') {
-                onChange({ ...styleConfig, fontSize: next });
-              }
-            }}
-          />
-        </div>
-
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <Label htmlFor="caption-word-spacing">Word spacing</Label>
-            <div className="flex items-center gap-2">
-              {clampWordSpacing(styleConfig.wordSpacing) !== 0.26 && (
-                <button
-                  type="button"
-                  onClick={() => onChange({ ...styleConfig, wordSpacing: 0.26 })}
-                  className="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 cursor-pointer"
-                  title="Reset word spacing to default (0.26em)"
-                >
-                  <RotateCcw className="w-2.5 h-2.5" aria-hidden="true" />
-                  <span>Reset</span>
-                </button>
-              )}
-              <span className="font-mono text-muted-foreground tabular-nums">
-                {clampWordSpacing(styleConfig.wordSpacing).toFixed(2)}em
-              </span>
-            </div>
-          </div>
-          <Slider
-            id="caption-word-spacing"
-            aria-label="Word spacing"
-            min={0.06}
-            max={0.9}
-            step={0.02}
-            value={[clampWordSpacing(styleConfig.wordSpacing)]}
-            onValueChange={(val) => {
-              const next = Array.isArray(val) ? val[0] : val;
-              if (typeof next === 'number') {
-                onChange({ ...styleConfig, wordSpacing: clampWordSpacing(next) });
-              }
-            }}
-          />
-        </div>
-      </div>
-
-      {/* 15 Visual Style Looks with Hover Audition */}
-      <div className="space-y-4" onMouseLeave={() => onPreviewChange(null)}>
-        {CATEGORY_GROUPS.map((group) => {
-          const items = CAPTION_STYLE_CATALOG.filter((s) => s.category === group.key);
-          return (
-            <div key={group.key} className="space-y-2">
-              <div>
-                <Label className="text-xs font-bold text-foreground">{group.title}</Label>
-                <p className="text-[11px] text-muted-foreground">{group.subtitle}</p>
-              </div>
-              <div
-                role="group"
-                aria-label={group.title}
-                className="grid grid-cols-1 @sm/style:grid-cols-2 gap-2"
-              >
-                {items.map((opt) => {
-                  const active = styleConfig.style === opt.id;
-                  const candidate: StyleConfig = {
-                    ...styleConfig,
-                    style: opt.id,
-                    revealMode: opt.defaultReveal,
-                    effect: opt.defaultEffect,
-                    ...(opt.defaultFont ? { fontFamily: opt.defaultFont } : {}),
-                  };
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      aria-pressed={active}
-                      onMouseEnter={() => onPreviewChange(candidate, opt.label)}
-                      onFocus={() => onPreviewChange(candidate, opt.label)}
-                      onBlur={() => onPreviewChange(null)}
-                      onClick={() => {
-                        onPreviewChange(null);
-                        onChange(candidate);
-                      }}
-                      className={`min-h-[54px] px-3 py-2.5 rounded-xl text-left border backdrop-blur-md transition-colors cursor-pointer flex items-center justify-between gap-2 ${
-                        active
-                          ? 'border-primary bg-accent/70 text-foreground shadow-xs'
-                          : 'border-border/70 glass-subpanel hover:bg-card/85 hover:border-white/35 text-foreground'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold truncate">{opt.label}</div>
-                        <div className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">
-                          {opt.desc}
-                        </div>
-                      </div>
-                      <div
-                        className="shrink-0 rounded-md bg-zinc-950/90 border border-white/10 px-2 py-1 text-[11px] leading-none"
-                        aria-hidden="true"
-                      >
-                        {renderStyleSpecimen(opt.id, displayedConfig.accentColor, activeFontMeta.cssFamily)}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       <Separator />
 
-      <div className="grid grid-cols-1 @md/style:grid-cols-3 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="caption-font-trigger" className="text-xs font-semibold">
-            Caption base font
-          </Label>
-          <Select
-            value={styleConfig.fontFamily}
-            onValueChange={(val) => {
-              if (val) onChange({ ...styleConfig, fontFamily: val as CaptionFont });
-            }}
-          >
-            <SelectTrigger id="caption-font-trigger" className="w-full h-9 bg-background">
-              <SelectValue>{activeFontMeta.label}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {CAPTION_FONT_OPTIONS.map((font) => (
-                <SelectItem key={font.id} value={font.id}>
-                  {font.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Saved Cloud Presets */}
+      <div className="space-y-2.5" onMouseLeave={() => onPreviewChange(null)}>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-heading text-xs font-bold text-foreground">
+            Saved presets
+          </h3>
         </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="caption-position-trigger" className="text-xs font-semibold">
-            Vertical position
-          </Label>
-          <Select
-            value={styleConfig.position}
-            onValueChange={(val) => {
-              if (val) onChange({ ...styleConfig, position: val as CaptionPosition });
-            }}
-          >
-            <SelectTrigger id="caption-position-trigger" className="w-full h-9 bg-background">
-              <SelectValue>
-                {POSITION_OPTIONS.find((p) => p.value === styleConfig.position)?.label ?? 'Bottom'}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {POSITION_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="caption-accent-color" className="text-xs font-semibold">
-            Accent colour
-          </Label>
-          <div className="flex items-center gap-3">
-            <input
-              id="caption-accent-color"
-              type="color"
-              value={styleConfig.accentColor}
-              onChange={(e) => onChange({ ...styleConfig, accentColor: e.target.value })}
-              className="w-12 h-9 p-1 rounded-lg border border-input bg-background cursor-pointer"
-            />
-            <span className="font-mono text-xs text-muted-foreground uppercase tabular-nums">
-              {styleConfig.accentColor}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <Separator />
-
-      <div className="space-y-3" onMouseLeave={() => onPreviewChange(null)}>
-        <h3 className="font-heading text-sm font-bold text-foreground">
-          Saved cloud presets
-        </h3>
         <div className="flex items-center gap-2">
           <Label htmlFor="preset-name-input" className="sr-only">
             Preset name
@@ -882,18 +900,18 @@ export function StylePanel({
             placeholder="Preset name (e.g. MrBeast Punch)"
             value={presetName}
             onChange={(e) => setPresetName(e.target.value)}
-            className="flex-1 h-9 bg-background/60"
+            className="flex-1 h-9 bg-background/60 text-xs"
           />
           <Button
             type="button"
             variant="secondary"
-            size="lg"
+            size="default"
             disabled={savingPreset}
             onClick={handleSave}
-            className="whitespace-nowrap shrink-0 font-semibold cursor-pointer"
+            className="h-9 whitespace-nowrap shrink-0 font-semibold cursor-pointer"
           >
             <BookmarkPlus className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{signedIn ? 'Save preset' : 'Sign in to save'}</span>
+            <span>{signedIn ? 'Save' : 'Sign in'}</span>
           </Button>
         </div>
 
@@ -904,7 +922,7 @@ export function StylePanel({
         )}
 
         {presets.length > 0 && (
-          <div className="space-y-2">
+          <div className="divide-y divide-border/70 rounded-lg border border-border/80 bg-background/35">
             {presets.map((p) => {
               const candidate: StyleConfig = {
                 style: p.style,
@@ -923,7 +941,7 @@ export function StylePanel({
               return (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between gap-3 rounded-xl glass-subpanel px-3 py-2"
+                  className="flex items-center justify-between gap-3 px-3 py-2"
                 >
                   <button
                     type="button"
@@ -937,21 +955,21 @@ export function StylePanel({
                     className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
                   >
                     <span
-                      className="w-4 h-4 rounded-sm border border-border shrink-0"
+                      className="w-3.5 h-3.5 rounded-sm border border-border shrink-0"
                       style={{ backgroundColor: p.accentColor }}
                       aria-hidden="true"
                     />
                     <span className="text-xs font-semibold text-foreground truncate">
                       {p.name}
                     </span>
-                    <span className="text-xs text-muted-foreground shrink-0">
+                    <span className="text-[11px] text-muted-foreground shrink-0">
                       {p.style.replace('st-', '')} · {p.fontSize}px
                     </span>
                   </button>
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon-xs"
                     aria-label={`Delete preset ${p.name}`}
                     onClick={() => void onDeletePreset(p.id)}
                     className="text-muted-foreground hover:text-destructive cursor-pointer"

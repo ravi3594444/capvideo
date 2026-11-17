@@ -46,7 +46,7 @@ export function HowItWorksView({ onOpenStudio }: { onOpenStudio: () => void }) {
               <strong className="text-foreground">Upload &amp; frame:</strong> Drop an MP4 or WebM video onto the Video Stage (or load the sample clip), choose 9:16, 1:1, or 16:9, and set your trim window.
             </li>
             <li>
-              <strong className="text-foreground">Deepgram Auto-Captions or manual:</strong> Click Generate with Deepgram to transcribe with word-level timestamps via <code className="font-mono">/api/transcribe</code>, use free browser listening, paste a script, import an <code className="font-mono">.srt</code>, or add rows manually.
+              <strong className="text-foreground">Deepgram Auto-Captions or manual:</strong> Choose a video from your phone or computer, then tap Auto-caption video to transcribe with word-level timestamps via <code className="font-mono">/api/transcribe</code>, use free browser listening, paste a script, import an <code className="font-mono">.srt</code>, or add rows manually.
             </li>
             <li>
               <strong className="text-foreground">Tap any word &amp; Mercury 3 AI:</strong> Tap directly on any caption word inside the video stage to fix spelling, use Undo/Redo (<code className="font-mono">Ctrl+Z</code>), or run Inception Mercury 3 clean-up and translation on caption text.

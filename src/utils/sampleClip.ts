@@ -8,6 +8,9 @@ export async function generateSampleCreatorClip(): Promise<File> {
   if (!ctx) throw new Error('Canvas unavailable');
 
   const stream = canvas.captureStream(24);
+  const videoTrack = stream.getVideoTracks()[0] as
+    | (MediaStreamTrack & { requestFrame?: () => void })
+    | undefined;
   const mime =
     ['video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
 
@@ -18,7 +21,7 @@ export async function generateSampleCreatorClip(): Promise<File> {
   };
 
   let frame = 0;
-  const totalFrames = 48; // ~2 seconds real-time recording, or fast playable 9s? Wait: let's record 3s smoothly!
+  const totalFrames = 48;
   const draw = () => {
     const p = frame / 72;
     const grad = ctx.createLinearGradient(0, 0, width, height);
@@ -42,12 +45,17 @@ export async function generateSampleCreatorClip(): Promise<File> {
     ctx.font = '500 18px "Manrope", system-ui, sans-serif';
     ctx.fillText('Test styles, trim & SRT export', width / 2, height * 0.41);
 
+    videoTrack?.requestFrame?.();
     frame++;
   };
 
   return new Promise((resolve, reject) => {
     recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
+      const blob = new Blob(chunks, { type: mime || 'video/webm' });
+      if (blob.size === 0) {
+        reject(new Error('Sample clip recorder produced an empty clip'));
+        return;
+      }
       resolve(new File([blob], 'creator-demo-clip.webm', { type: 'video/webm' }));
     };
     recorder.onerror = () => reject(new Error('Failed to generate sample clip'));
@@ -56,9 +64,17 @@ export async function generateSampleCreatorClip(): Promise<File> {
     recorder.start(100);
     const interval = window.setInterval(() => {
       draw();
-      if (frame >= totalFrames) {
+      const hasData = chunks.length > 0;
+      if (frame >= totalFrames && (hasData || frame >= totalFrames + 24)) {
         window.clearInterval(interval);
-        if (recorder.state !== 'inactive') recorder.stop();
+        if (recorder.state !== 'inactive') {
+          try {
+            recorder.requestData();
+          } catch {
+            // ignore if unsupported
+          }
+          recorder.stop();
+        }
       }
     }, 42);
   });

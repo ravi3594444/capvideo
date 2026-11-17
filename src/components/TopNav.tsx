@@ -36,15 +36,15 @@ export function TopNav({
       : 'Sign in with Google';
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-card/70 backdrop-blur-xl backdrop-saturate-150 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)]">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
+    <header className="md:sticky md:top-0 z-30 border-b border-border/70 bg-card/80 backdrop-blur-xl">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-6">
         <a
           href="#studio"
           onClick={(e) => {
             e.preventDefault();
             onNavigate('studio');
           }}
-          className="font-display text-xl font-extrabold tracking-tight text-foreground whitespace-nowrap shrink-0"
+          className="font-display text-lg font-extrabold tracking-tight text-foreground whitespace-nowrap shrink-0"
         >
           Caption <span className="text-muted-foreground font-semibold">Lite</span>
         </a>
@@ -79,10 +79,10 @@ export function TopNav({
         <div className="flex items-center shrink-0">
           <Button
             type="button"
-            size="lg"
+            size="sm"
             disabled={authLoading || savingProject}
             onClick={onPrimaryAction}
-            className="px-4 font-semibold whitespace-nowrap shrink-0 cursor-pointer"
+            className="px-3.5 font-semibold whitespace-nowrap shrink-0 cursor-pointer"
           >
             {primaryLabel}
           </Button>
@@ -91,7 +91,7 @@ export function TopNav({
 
       <nav
         aria-label="Mobile navigation"
-        className="flex md:hidden border-t border-border px-3 py-1.5 items-center justify-between gap-1 text-xs font-medium"
+        className="flex md:hidden border-t border-border/60 px-3 py-1 items-center justify-between gap-1 text-xs font-medium overflow-x-auto"
       >
         {navItems.map((item) => {
           const active = activeView === item.id;
@@ -100,9 +100,9 @@ export function TopNav({
               key={item.id}
               type="button"
               onClick={() => onNavigate(item.id)}
-              className={`min-h-[36px] px-2 rounded-md whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+              className={`min-h-[34px] px-2.5 rounded-md whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                 active
-                  ? 'text-primary font-semibold bg-accent/60'
+                  ? 'text-foreground font-semibold bg-accent'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >

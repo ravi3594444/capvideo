@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Moon, RotateCcw, Sun } from 'lucide-react';
+import {
+  AlertCircle,
+  Captions,
+  Download,
+  Moon,
+  Palette,
+  Pipette,
+  RotateCcw,
+  Sparkles,
+  Sun,
+  type LucideIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -45,6 +56,7 @@ import {
   type NoiseCleanStrength,
 } from './utils/audioEngine';
 import { generateSampleCreatorClip } from './utils/sampleClip';
+import { useIsCompactLayout } from './hooks/useMediaQuery';
 import {
   deleteProjectFromFirestore,
   deleteStylePresetFromFirestore,
@@ -58,6 +70,14 @@ import {
 } from './lib/firestoreService';
 
 type InspectorTab = 'captions' | 'style' | 'reference' | 'ai' | 'export';
+
+const INSPECTOR_TABS: { id: InspectorTab; label: string; Icon: LucideIcon }[] = [
+  { id: 'captions', label: 'Captions', Icon: Captions },
+  { id: 'style', label: 'Style', Icon: Palette },
+  { id: 'reference', label: 'Reference', Icon: Pipette },
+  { id: 'ai', label: 'AI tools', Icon: Sparkles },
+  { id: 'export', label: 'Export', Icon: Download },
+];
 
 function getInitialView(): AppView {
   if (typeof window === 'undefined') return 'studio';
@@ -77,6 +97,9 @@ function StudioApp() {
 
   const [activeView, setActiveView] = useState<AppView>(() => getInitialView());
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('captions');
+  const isCompact = useIsCompactLayout();
+  const inspectorRef = useRef<HTMLDivElement | null>(null);
+  const videoPickerRef = useRef<HTMLInputElement | null>(null);
   const [darkMode, setDarkMode] = useState(true);
 
   // Project & local-draft state
@@ -125,9 +148,7 @@ function StudioApp() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [fileInfo, setFileInfo] = useState(
-    'No video loaded · Drop MP4/WebM or click Pick video'
-  );
+  const [fileInfo, setFileInfo] = useState('No video yet');
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
@@ -307,6 +328,19 @@ function StudioApp() {
       setProjectTitle(file.name.replace(/\.[^.]+$/, '').slice(0, 80) || 'Untitled Reel');
     }
     toast.success(`Loaded “${file.name}”.`);
+  };
+
+  const handleInspectorTabChange = (tab: InspectorTab) => {
+    setPreviewStyleState(null);
+    setInspectorTab(tab);
+    if (!isCompact) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    window.requestAnimationFrame(() => {
+      inspectorRef.current?.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
   };
 
   const handleSrtFileDropped = async (file: File) => {
@@ -576,7 +610,7 @@ function StudioApp() {
     setLoopClip(false);
     setStyleConfig(DEFAULT_STYLE_CONFIG);
     resetCaptionHistory(createSampleCaptions());
-    toast.success('Reset studio draft back to sample captions.');
+    toast.success('Studio reset to the sample captions.');
   };
 
   return (
@@ -612,11 +646,11 @@ function StudioApp() {
 
       <main className="flex-1">
         {activeView === 'studio' && (
-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-5 space-y-4">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-4 space-y-4 max-lg:pb-[calc(5rem+env(safe-area-inset-bottom))]">
             <h1 className="sr-only">Caption Lite Video Caption Studio</h1>
 
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-3.5 border-b border-border">
-              <div className="flex-1 min-w-[220px] max-w-md space-y-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/80">
+              <div className="flex-1 min-w-[200px] max-w-md flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                 <Label htmlFor="project-title-input" className="sr-only">
                   Project title
                 </Label>
@@ -626,43 +660,44 @@ function StudioApp() {
                   maxLength={120}
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
-                  className="h-10 glass-subpanel font-display text-base font-bold tracking-tight"
+                  className="h-9 bg-background/60 font-display text-sm font-bold tracking-tight sm:w-56"
                 />
-                <p className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                  {aspect === 'r916' ? '9:16 Vertical' : aspect === 'r11' ? '1:1 Square' : '16:9 Wide'} ·{' '}
-                  {captions.length} {captions.length === 1 ? 'caption' : 'captions'} ·{' '}
-                  {user ? `Syncing as ${user.displayName || user.email}` : 'Auto-saved locally (Sign in to sync)'}
+                <p className="font-mono text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                  {aspect === 'r916' ? '9:16' : aspect === 'r11' ? '1:1' : '16:9'} ·{' '}
+                  {captions.length} {captions.length === 1 ? 'cue' : 'cues'} ·{' '}
+                  {user ? `Synced (${user.displayName || user.email})` : 'Local draft'}
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Button
                   type="button"
-                  variant="outline"
-                  size="default"
+                  variant="ghost"
+                  size="sm"
                   onClick={handleResetDemo}
-                  className="bg-card cursor-pointer whitespace-nowrap shrink-0 font-semibold"
+                  aria-label="Start over with the sample captions"
+                  className="cursor-pointer whitespace-nowrap shrink-0 font-medium text-muted-foreground hover:text-foreground"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Reset demo</span>
+                  <span className="hidden sm:inline">Start over</span>
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  size="default"
+                  size="sm"
                   onClick={() => setDarkMode((prev) => !prev)}
                   aria-label={darkMode ? 'Switch to light studio mode' : 'Switch to dark studio mode'}
-                  className="bg-card cursor-pointer whitespace-nowrap shrink-0 font-semibold"
+                  className="bg-card cursor-pointer whitespace-nowrap shrink-0 font-medium"
                 >
                   {darkMode ? (
                     <>
                       <Sun className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>Light studio</span>
+                      <span className="hidden sm:inline">Light</span>
                     </>
                   ) : (
                     <>
                       <Moon className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>Dark studio</span>
+                      <span className="hidden sm:inline">Dark</span>
                     </>
                   )}
                 </Button>
@@ -673,6 +708,7 @@ function StudioApp() {
               <div className="lg:col-span-5 lg:sticky lg:top-20">
                 <VideoStage
                   videoRef={videoRef}
+                  videoPickerRef={videoPickerRef}
                   videoUrl={videoUrl}
                   fileInfo={fileInfo}
                   duration={duration}
@@ -746,32 +782,23 @@ function StudioApp() {
                 />
               </div>
 
-              <Card className="lg:col-span-7">
-                <CardContent className="pt-1">
+              <Card ref={inspectorRef} className="lg:col-span-7 overflow-visible scroll-mt-4 md:scroll-mt-20">
+                <CardContent className="pt-0">
                   <Tabs
                     value={inspectorTab}
-                    onValueChange={(val) => {
-                      setPreviewStyleState(null);
-                      setInspectorTab(val as InspectorTab);
-                    }}
-                    className="space-y-5"
+                    onValueChange={(val) => handleInspectorTabChange(val as InspectorTab)}
+                    className="space-y-4"
                   >
-                    <TabsList className="w-full h-10 grid grid-cols-5">
-                      <TabsTrigger value="captions" className="text-xs cursor-pointer whitespace-nowrap">
-                        02. Captions
-                      </TabsTrigger>
-                      <TabsTrigger value="style" className="text-xs cursor-pointer whitespace-nowrap">
-                        03. Style
-                      </TabsTrigger>
-                      <TabsTrigger value="reference" className="text-xs cursor-pointer whitespace-nowrap">
-                        04. Reference
-                      </TabsTrigger>
-                      <TabsTrigger value="ai" className="text-xs cursor-pointer whitespace-nowrap">
-                        AI Voice &amp; Text
-                      </TabsTrigger>
-                      <TabsTrigger value="export" className="text-xs cursor-pointer whitespace-nowrap">
-                        05. Export
-                      </TabsTrigger>
+                    <TabsList className="hidden lg:grid w-full h-10 grid-cols-5">
+                      {INSPECTOR_TABS.map(({ id, label }) => (
+                        <TabsTrigger
+                          key={id}
+                          value={id}
+                          className="text-xs cursor-pointer whitespace-nowrap"
+                        >
+                          {label}
+                        </TabsTrigger>
+                      ))}
                     </TabsList>
 
                     <TabsContent value="captions">
@@ -798,11 +825,14 @@ function StudioApp() {
                         onCaptionsChange={updateCaptions}
                         onSeekTo={handleSeekTo}
                         onOpenDeployGuide={() => setActiveView('deploy')}
+                        onRequestVideo={() => videoPickerRef.current?.click()}
                       />
                     </TabsContent>
 
                     <TabsContent value="style">
                       <StylePanel
+                        videoRef={videoRef}
+                        videoUrl={videoUrl}
                         styleConfig={styleConfig}
                         previewConfig={previewStyleState?.config ?? null}
                         previewLabel={previewStyleState?.label ?? null}
@@ -909,6 +939,39 @@ function StudioApp() {
                 setEditingCue(cue);
               }}
             />
+
+            <nav
+              aria-label="Studio sections"
+              className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
+            >
+              <div className="mx-auto flex max-w-xl">
+                {INSPECTOR_TABS.map(({ id, label, Icon }) => {
+                  const active = inspectorTab === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-current={active ? 'true' : undefined}
+                      onClick={() => handleInspectorTabChange(id)}
+                      className={`relative flex flex-1 min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer transition-colors ${
+                        active
+                          ? 'text-foreground font-semibold'
+                          : 'text-muted-foreground font-medium'
+                      }`}
+                    >
+                      {active && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-primary"
+                        />
+                      )}
+                      <Icon className="w-5 h-5" aria-hidden="true" />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
           </div>
         )}
 
@@ -937,11 +1000,11 @@ function StudioApp() {
         {activeView === 'guide' && <HowItWorksView onOpenStudio={() => setActiveView('studio')} />}
       </main>
 
-      <footer className="border-t border-border/70 bg-card/55 backdrop-blur-lg py-5 px-4 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-border/70 bg-card/55 backdrop-blur-lg py-4 px-4 text-center text-xs text-muted-foreground max-lg:pb-[calc(4.75rem+env(safe-area-inset-bottom))]">
         <span className="font-display font-semibold text-foreground">Caption Lite</span> · Deepgram Nova-2 &amp; Inception Mercury 3 · Firebase Auth &amp; Firestore sync
       </footer>
 
-      <Toaster theme={darkMode ? 'dark' : 'light'} position="bottom-right" />
+      <Toaster theme={darkMode ? 'dark' : 'light'} position={isCompact ? 'top-center' : 'bottom-right'} />
     </div>
   );
 }

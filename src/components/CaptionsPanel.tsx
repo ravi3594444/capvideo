@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -92,6 +91,7 @@ interface CaptionsPanelProps {
   onCaptionsChange: (next: CaptionCue[]) => void;
   onSeekTo: (time: number, autoPlay?: boolean) => void;
   onOpenDeployGuide: () => void;
+  onRequestVideo: () => void;
 }
 
 const LANGUAGE_OPTIONS = [
@@ -133,6 +133,7 @@ export function CaptionsPanel({
   onCaptionsChange,
   onSeekTo,
   onOpenDeployGuide,
+  onRequestVideo,
 }: CaptionsPanelProps) {
   const [generating, setGenerating] = useState(false);
   const [polishing, setPolishing] = useState(false);
@@ -183,7 +184,8 @@ export function CaptionsPanel({
 
   const handleAutoGenerate = async () => {
     if (!videoFile) {
-      setStatusMsg('Step 1: Drop or pick a video clip on the left first, or paste a script on the right.');
+      setStatusMsg('Choose a video first, then tap Auto-caption. You can also type or paste captions without one.');
+      onRequestVideo();
       return;
     }
 
@@ -523,36 +525,15 @@ export function CaptionsPanel({
   };
 
   const sortedCaptions = captions.slice().sort((a, b) => a.start - b.start);
-  const timelineSpan = Math.max(
-    duration || 0,
-    sortedCaptions.length ? sortedCaptions[sortedCaptions.length - 1].end : 0,
-    4
-  );
 
   return (
-    <div className="space-y-5 @container/captions">
-      <div className="grid grid-cols-1 @lg/captions:grid-cols-2 gap-4">
-        <div className="rounded-xl glass-subpanel p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-heading text-sm font-bold text-foreground whitespace-nowrap">
-              1. Auto-caption your video
-            </h2>
-            <span className="font-mono text-[11px] font-medium text-muted-foreground whitespace-nowrap shrink-0">
-              {capabilities === null
-                ? 'Checking server…'
-                : capabilities.deepgram
-                  ? 'Deepgram ready'
-                  : 'Needs API key'}
-            </span>
-          </div>
-
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Extracts word-level timestamps via Deepgram Nova-2, applying smart phrase breaks and pause hold times automatically.
-          </p>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="caption-lang-trigger" className="text-xs">
-              Spoken language
+    <div className="space-y-4 @container/captions">
+      {/* Unified Source & Capture Action Bar */}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-[148px] shrink-0 space-y-1">
+            <Label htmlFor="caption-lang-trigger" className="text-[11px] font-medium text-muted-foreground">
+              Language
             </Label>
             <Select
               value={language}
@@ -560,7 +541,7 @@ export function CaptionsPanel({
                 if (val) onLanguageChange(val);
               }}
             >
-              <SelectTrigger id="caption-lang-trigger" className="w-full h-9 bg-background">
+              <SelectTrigger id="caption-lang-trigger" className="w-full h-9 bg-background text-xs">
                 <SelectValue>
                   {LANGUAGE_OPTIONS.find((l) => l.value === language)?.label ?? 'English'}
                 </SelectValue>
@@ -577,10 +558,10 @@ export function CaptionsPanel({
 
           <Button
             type="button"
-            size="lg"
+            size="default"
             disabled={generating}
             onClick={handleAutoGenerate}
-            className="w-full font-semibold cursor-pointer"
+            className="h-9 flex-1 min-w-[185px] font-semibold cursor-pointer"
           >
             <Wand2 className="w-4 h-4" aria-hidden="true" />
             <span>
@@ -588,105 +569,104 @@ export function CaptionsPanel({
                 ? 'Transcribing speech…'
                 : videoFile
                   ? 'Auto-caption video'
-                  : 'Generate with Deepgram'}
+                  : 'Choose a video to auto-caption'}
             </span>
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => setScriptOpen(true)}
+            className="cursor-pointer font-medium"
+          >
+            <FileText className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Paste script / .srt</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => srtInputRef.current?.click()}
+            className="cursor-pointer font-medium"
+          >
+            <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Import .srt</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={handleAddRow}
+            className="cursor-pointer font-medium"
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Add line</span>
           </Button>
 
           {SpeechRec && (
-            <div className="pt-2 border-t border-border">
-              {!listening ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={startBrowserListening}
-                  className="w-full cursor-pointer"
-                >
-                  <Mic className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Use browser mic instead</span>
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => stopBrowserListening('Browser listening stopped.')}
-                  className="w-full cursor-pointer"
-                >
-                  Stop browser listening
-                </Button>
-              )}
-              {liveInterim && (
-                <p className="mt-2 text-xs text-foreground bg-background rounded-md px-2.5 py-1.5 border border-border">
-                  Hearing: “{liveInterim}”
-                </p>
-              )}
-            </div>
+            !listening ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={startBrowserListening}
+                className="cursor-pointer font-medium"
+              >
+                <Mic className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Mic</span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="destructive"
+                size="xs"
+                onClick={() => stopBrowserListening('Browser listening stopped.')}
+                className="cursor-pointer font-medium"
+              >
+                Stop mic
+              </Button>
+            )
+          )}
+
+          {capabilities !== null && !capabilities.deepgram && (
+            <button
+              type="button"
+              onClick={onOpenDeployGuide}
+              className="ml-auto text-[11px] font-medium text-muted-foreground hover:text-foreground underline-offset-2 hover:underline cursor-pointer"
+            >
+              Deepgram key needed
+            </button>
           )}
         </div>
 
-        <div className="rounded-xl glass-subpanel p-4 flex flex-col justify-between space-y-3">
-          <div className="space-y-2">
-            <h2 className="font-heading text-sm font-bold text-foreground">
-              2. Or paste, type, or import
-            </h2>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Paste a voiceover script to pace evenly across your clip, insert lines at the playhead, or import an <code className="font-mono">.srt</code> subtitle file.
-            </p>
-          </div>
+        <input
+          ref={srtInputRef}
+          type="file"
+          accept=".srt,application/x-subrip,text/plain"
+          tabIndex={-1}
+          aria-hidden="true"
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleImportSrt(file);
+            e.target.value = '';
+          }}
+        />
 
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              onClick={() => setScriptOpen(true)}
-              className="w-full font-semibold cursor-pointer"
-            >
-              <FileText className="w-4 h-4" aria-hidden="true" />
-              <span>Paste script → Auto-time</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              onClick={handleAddRow}
-              className="w-full font-semibold cursor-pointer"
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-              <span>Add line at playhead</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              onClick={() => srtInputRef.current?.click()}
-              className="w-full cursor-pointer"
-            >
-              <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Import .srt subtitles</span>
-            </Button>
-            <input
-              ref={srtInputRef}
-              type="file"
-              accept=".srt,text/plain"
-              tabIndex={-1}
-              aria-hidden="true"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleImportSrt(file);
-                e.target.value = '';
-              }}
-            />
-          </div>
-        </div>
+        {liveInterim && (
+          <p className="text-xs text-foreground bg-muted/60 rounded-md px-2.5 py-1.5 border border-border">
+            Hearing: “{liveInterim}”
+          </p>
+        )}
       </div>
 
       {statusMsg && (
-        <Alert role="status" aria-live="polite">
+        <Alert role="status" aria-live="polite" className="py-2.5">
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span>{statusMsg}</span>
             {missingEnv && (
@@ -706,31 +686,26 @@ export function CaptionsPanel({
 
       <Separator />
 
-      <div className="space-y-3">
+      {/* Caption Lines Header & Controls */}
+      <div className="space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+          <div className="flex items-baseline gap-2">
             <h3 className="font-heading text-sm font-bold text-foreground">
-              Caption Editor &amp; Timeline
+              Captions
             </h3>
-            <p className="text-[11px] text-muted-foreground">
-              Set words per screen, tap any word chip to Spotlight it, or fine-tune start &amp; end timing.
-            </p>
+            <span className="font-mono text-xs text-muted-foreground tabular-nums">
+              {sortedCaptions.length} {sortedCaptions.length === 1 ? 'cue' : 'cues'}
+            </span>
           </div>
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">
-            {sortedCaptions.length} {sortedCaptions.length === 1 ? 'cue' : 'cues'}
-          </span>
-        </div>
 
-        {/* Dedicated Words-Per-Page + Cleanup Toolbar */}
-        <div className="rounded-xl glass-subpanel p-3 space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold text-foreground">
-              Words on screen (smart break)
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-medium text-muted-foreground hidden sm:inline">
+              Per screen
             </span>
             <div
               role="group"
               aria-label="Words per screen"
-              className="inline-flex items-center gap-1 rounded-lg bg-muted/70 p-0.5 border border-border"
+              className="inline-flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5 border border-border"
             >
               {DENSITY_OPTIONS.map((opt) => (
                 <button
@@ -738,7 +713,7 @@ export function CaptionsPanel({
                   type="button"
                   aria-pressed={wordsPerPage === opt.value}
                   onClick={() => handleDensityRegroup(opt.value)}
-                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                  className={`cap-word-chip px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     wordsPerPage === opt.value
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -749,8 +724,10 @@ export function CaptionsPanel({
               ))}
             </div>
           </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+        {(sortedCaptions.length > 0 || canUndo || canRedo) && (
+          <div className="flex flex-wrap items-center gap-1 border-b border-border/70 pb-2.5">
             {sortedCaptions.length > 0 && (
               <>
                 <Button
@@ -766,7 +743,7 @@ export function CaptionsPanel({
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="xs"
                   onClick={handleRemoveFillers}
                   className="cursor-pointer"
@@ -776,7 +753,7 @@ export function CaptionsPanel({
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="xs"
                   disabled={polishing}
                   onClick={() => void handleQuickAiPolish()}
@@ -788,105 +765,107 @@ export function CaptionsPanel({
               </>
             )}
 
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={!canUndo}
-              onClick={onUndo}
-              aria-label="Undo caption edit"
-              title="Undo (Ctrl+Z)"
-              className="cursor-pointer"
-            >
-              <Undo2 className="w-3 h-3" aria-hidden="true" />
-              <span>Undo</span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              disabled={!canRedo}
-              onClick={onRedo}
-              aria-label="Redo caption edit"
-              title="Redo (Ctrl+Shift+Z)"
-              className="cursor-pointer"
-            >
-              <Redo2 className="w-3 h-3" aria-hidden="true" />
-              <span>Redo</span>
-            </Button>
+            <div className="ml-auto flex flex-wrap items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={!canUndo}
+                onClick={onUndo}
+                aria-label="Undo caption edit"
+                title="Undo (Ctrl+Z)"
+                className="cursor-pointer px-1.5"
+              >
+                <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={!canRedo}
+                onClick={onRedo}
+                aria-label="Redo caption edit"
+                title="Redo (Ctrl+Shift+Z)"
+                className="cursor-pointer px-1.5"
+              >
+                <Redo2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </Button>
 
-            {sortedCaptions.length > 0 && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => {
-                    onCaptionsChange(shiftCaptions(captions, -0.2, duration || undefined));
-                    setStatusMsg('Shifted all caption timings 0.2s earlier.');
-                  }}
-                  className="font-mono cursor-pointer"
-                >
-                  -0.2s
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => {
-                    onCaptionsChange(shiftCaptions(captions, 0.2, duration || undefined));
-                    setStatusMsg('Shifted all caption timings 0.2s later.');
-                  }}
-                  className="font-mono cursor-pointer"
-                >
-                  +0.2s
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => void handleCopyTranscript()}
-                  className="cursor-pointer"
-                >
-                  {copiedTxt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
-                  <span>{copiedTxt ? 'Copied' : 'Copy .txt'}</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => void handleCopySrt()}
-                  className="cursor-pointer"
-                >
-                  {copiedSrt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
-                  <span>{copiedSrt ? 'Copied' : 'Copy .srt'}</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => {
-                    onCaptionsChange([]);
-                    setStatusMsg('Cleared timeline. Click Undo to restore captions.');
-                  }}
-                  className="cursor-pointer text-muted-foreground hover:text-destructive ml-auto"
-                >
-                  Clear
-                </Button>
-              </>
-            )}
+              {sortedCaptions.length > 0 && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      onCaptionsChange(shiftCaptions(captions, -0.2, duration || undefined));
+                      setStatusMsg('Shifted all caption timings 0.2s earlier.');
+                    }}
+                    title="Shift all lines 0.2s earlier"
+                    className="font-mono cursor-pointer px-1.5"
+                  >
+                    -0.2s
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      onCaptionsChange(shiftCaptions(captions, 0.2, duration || undefined));
+                      setStatusMsg('Shifted all caption timings 0.2s later.');
+                    }}
+                    title="Shift all lines 0.2s later"
+                    className="font-mono cursor-pointer px-1.5"
+                  >
+                    +0.2s
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => void handleCopyTranscript()}
+                    title="Copy plain transcript"
+                    className="cursor-pointer"
+                  >
+                    {copiedTxt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                    <span>{copiedTxt ? 'Copied' : '.txt'}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => void handleCopySrt()}
+                    title="Copy .srt subtitles"
+                    className="cursor-pointer"
+                  >
+                    {copiedSrt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                    <span>{copiedSrt ? 'Copied' : '.srt'}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      onCaptionsChange([]);
+                      setStatusMsg('Cleared timeline. Click Undo to restore captions.');
+                    }}
+                    className="cursor-pointer text-muted-foreground hover:text-destructive"
+                  >
+                    Clear
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {sortedCaptions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/80 glass-subpanel p-8 text-center space-y-3">
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-foreground">No captions yet</p>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Click Auto-caption video above, paste a script to auto-time, or add your first line right here.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="rounded-xl border border-dashed border-border p-6 text-center space-y-2.5">
+            <p className="text-sm font-semibold text-foreground">No captions yet</p>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              Auto-caption a video, paste a script, or add your first line manually.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
               <Button
                 type="button"
                 variant="outline"
@@ -908,50 +887,96 @@ export function CaptionsPanel({
                 className="cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Restore sample cues</span>
+                <span>Load sample cues</span>
               </Button>
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
-            <ScrollArea className="h-[420px] pr-3">
-              <div className="space-y-2.5">
-                {sortedCaptions.map((cue, index) => {
-                  const isActive = currentTime >= cue.start && currentTime < cue.end;
-                  const cueWords = cue.text.trim() ? cue.text.trim().split(/\s+/) : [];
-                  return (
-                    <div
-                      key={cue.id}
-                      data-testid={`caption-row-${index}`}
-                      className={`cue-row-opt rounded-xl border p-3.5 space-y-2.5 backdrop-blur-md transition-colors ${
-                        isActive
-                          ? 'border-primary bg-accent/60'
-                          : 'border-border/70 glass-subpanel'
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="font-bold text-foreground tabular-nums">
-                            Line {index + 1}
+          <div className="space-y-2.5">
+            <div className="rounded-xl border border-border/80 divide-y divide-border/70 lg:max-h-[520px] lg:overflow-y-auto scroll-contain bg-background/30">
+              {sortedCaptions.map((cue, index) => {
+                const isActive = currentTime >= cue.start && currentTime < cue.end;
+                const cueWords = cue.text.trim() ? cue.text.trim().split(/\s+/) : [];
+                return (
+                  <div
+                    key={cue.id}
+                    data-testid={`caption-row-${index}`}
+                    className={`cue-row-opt px-3 py-2.5 space-y-2 transition-colors ${
+                      isActive ? 'bg-accent/55' : 'hover:bg-accent/20'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="font-mono font-bold text-foreground tabular-nums w-5">
+                          #{index + 1}
+                        </span>
+                        {isActive && (
+                          <span className="text-[11px] font-semibold text-primary">
+                            Playing
                           </span>
-                          {isActive && (
-                            <span className="text-[11px] font-semibold text-primary">
-                              · Playing now
-                            </span>
-                          )}
-                          <span className="text-[11px] text-muted-foreground tabular-nums">
-                            · {cueWords.length} {cueWords.length === 1 ? 'word' : 'words'}
-                            {cueWords.length > 6 ? ' (Split recommended)' : ''}
-                          </span>
+                        )}
+                        <div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <Label htmlFor={`cap-start-${cue.id}`} className="sr-only">
+                            Line {index + 1} start seconds
+                          </Label>
+                          <Input
+                            id={`cap-start-${cue.id}`}
+                            type="number"
+                            step={0.1}
+                            min={0}
+                            aria-label={`Line ${index + 1} start time in seconds`}
+                            value={Number(cue.start.toFixed(1))}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseFloat(e.target.value) || 0);
+                              onCaptionsChange(
+                                captions.map((c) =>
+                                  c.id === cue.id
+                                    ? { ...c, start: val, end: c.end <= val ? val + 0.5 : c.end }
+                                    : c
+                                )
+                              );
+                            }}
+                            className="w-14 h-7 px-1.5 text-center font-mono text-xs tabular-nums bg-background"
+                          />
+                          <span aria-hidden="true">–</span>
+                          <Label htmlFor={`cap-end-${cue.id}`} className="sr-only">
+                            Line {index + 1} end seconds
+                          </Label>
+                          <Input
+                            id={`cap-end-${cue.id}`}
+                            type="number"
+                            step={0.1}
+                            min={0.2}
+                            aria-label={`Line ${index + 1} end time in seconds`}
+                            value={Number(cue.end.toFixed(1))}
+                            onChange={(e) => {
+                              const val = Math.max(
+                                cue.start + 0.2,
+                                parseFloat(e.target.value) || cue.end
+                              );
+                              onCaptionsChange(
+                                captions.map((c) => (c.id === cue.id ? { ...c, end: val } : c))
+                              );
+                            }}
+                            className="w-14 h-7 px-1.5 text-center font-mono text-xs tabular-nums bg-background"
+                          />
+                          <span>s</span>
                         </div>
+                        {cueWords.length > 6 && (
+                          <span className="text-[11px] text-muted-foreground">
+                            · Split recommended
+                          </span>
+                        )}
+                      </div>
 
+                      <div className="flex items-center gap-0.5">
                         <Tooltip>
                           <TooltipTrigger
                             render={
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="xs"
+                                size="icon-xs"
                                 disabled={!hasVideo}
                                 onClick={() => {
                                   const snapped = snapCueStartToTime(
@@ -966,143 +991,33 @@ export function CaptionsPanel({
                                     `Snapped Line ${index + 1} start to ${formatSec(snapped.start)}.`
                                   );
                                 }}
-                                aria-label={`Snap line ${index + 1} start to current video time`}
-                                className="cursor-pointer font-mono text-[11px]"
+                                aria-label={`Start line ${index + 1} at playhead`}
+                                className="cursor-pointer"
                               />
                             }
                           >
-                            <Clock className="w-3 h-3" aria-hidden="true" />
-                            <span>Start at playhead</span>
+                            <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                           </TooltipTrigger>
-                          <TooltipContent>
-                            Move this line’s start time to match the current video position
-                          </TooltipContent>
+                          <TooltipContent>Set start time to current playhead</TooltipContent>
                         </Tooltip>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="space-y-1">
-                          <Label
-                            htmlFor={`cap-start-${cue.id}`}
-                            className="text-[11px] text-muted-foreground"
-                          >
-                            Start (s)
-                          </Label>
-                          <Input
-                            id={`cap-start-${cue.id}`}
-                            type="number"
-                            step={0.1}
-                            min={0}
-                            value={Number(cue.start.toFixed(1))}
-                            onChange={(e) => {
-                              const val = Math.max(0, parseFloat(e.target.value) || 0);
-                              onCaptionsChange(
-                                captions.map((c) =>
-                                  c.id === cue.id
-                                    ? { ...c, start: val, end: c.end <= val ? val + 0.5 : c.end }
-                                    : c
-                                )
-                              );
-                            }}
-                            className="font-mono text-xs tabular-nums"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label
-                            htmlFor={`cap-end-${cue.id}`}
-                            className="text-[11px] text-muted-foreground"
-                          >
-                            End (s)
-                          </Label>
-                          <Input
-                            id={`cap-end-${cue.id}`}
-                            type="number"
-                            step={0.1}
-                            min={0.2}
-                            value={Number(cue.end.toFixed(1))}
-                            onChange={(e) => {
-                              const val = Math.max(
-                                cue.start + 0.2,
-                                parseFloat(e.target.value) || cue.end
-                              );
-                              onCaptionsChange(
-                                captions.map((c) => (c.id === cue.id ? { ...c, end: val } : c))
-                              );
-                            }}
-                            className="font-mono text-xs tabular-nums"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor={`cap-text-${cue.id}`} className="sr-only">
-                          Caption {index + 1} text
-                        </Label>
-                        <Textarea
-                          id={`cap-text-${cue.id}`}
-                          rows={2}
-                          placeholder="Type what is spoken in this line…"
-                          value={cue.text}
-                          onChange={(e) => {
-                            const text = e.target.value;
-                            onCaptionsChange(
-                              captions.map((c) => (c.id === cue.id ? { ...c, text } : c))
-                            );
-                          }}
-                          className="text-sm"
-                        />
-                      </div>
-
-                      {cueWords.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
-                            Spotlight:
-                          </span>
-                          {cueWords.map((word, wi) => {
-                            const marked = isWordSpotlightKey(word, cue, spotlightAuto);
-                            return (
-                              <button
-                                key={`${cue.id}_chip_${wi}`}
-                                type="button"
-                                aria-pressed={marked}
-                                onClick={() => {
-                                  const updated = toggleCueKeyWord(cue, word, spotlightAuto);
-                                  onCaptionsChange(
-                                    captions.map((c) => (c.id === cue.id ? updated : c))
-                                  );
-                                }}
-                                title="Click to toggle Spotlight key word emphasis"
-                                className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-colors cursor-pointer ${
-                                  marked
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'bg-background/70 text-muted-foreground border-border/80 hover:text-foreground'
-                                }`}
-                              >
-                                {word}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-2">
                         <Tooltip>
                           <TooltipTrigger
                             render={
                               <Button
                                 type="button"
-                                variant="outline"
-                                size="sm"
+                                variant="ghost"
+                                size="icon-xs"
                                 disabled={!hasVideo}
                                 onClick={() => onSeekTo(cue.start, true)}
+                                aria-label={`Play line ${index + 1}`}
                                 className="cursor-pointer"
                               />
                             }
                           >
                             <Play className="w-3.5 h-3.5" aria-hidden="true" />
-                            <span>Play line</span>
                           </TooltipTrigger>
-                          <TooltipContent>Jump to this line on the video and play</TooltipContent>
+                          <TooltipContent>Play from this line</TooltipContent>
                         </Tooltip>
 
                         <Tooltip>
@@ -1110,8 +1025,8 @@ export function CaptionsPanel({
                             render={
                               <Button
                                 type="button"
-                                variant="outline"
-                                size="sm"
+                                variant="ghost"
+                                size="icon-xs"
                                 onClick={() => {
                                   const split = splitCaption(cue);
                                   if (!split) {
@@ -1126,14 +1041,14 @@ export function CaptionsPanel({
                                     )
                                   );
                                 }}
+                                aria-label={`Split line ${index + 1}`}
                                 className="cursor-pointer"
                               />
                             }
                           >
                             <Scissors className="w-3.5 h-3.5" aria-hidden="true" />
-                            <span>Split</span>
                           </TooltipTrigger>
-                          <TooltipContent>Split this cue evenly into two shorter lines</TooltipContent>
+                          <TooltipContent>Split into two lines</TooltipContent>
                         </Tooltip>
 
                         <Tooltip>
@@ -1141,49 +1056,99 @@ export function CaptionsPanel({
                             render={
                               <Button
                                 type="button"
-                                variant="outline"
-                                size="sm"
+                                variant="ghost"
+                                size="icon-xs"
                                 disabled={index >= sortedCaptions.length - 1}
                                 onClick={() => {
                                   onCaptionsChange(mergeCaptionWithNext(sortedCaptions, cue.id));
                                 }}
+                                aria-label={`Merge line ${index + 1} with next`}
                                 className="cursor-pointer"
                               />
                             }
                           >
                             <Merge className="w-3.5 h-3.5" aria-hidden="true" />
-                            <span>Merge next</span>
                           </TooltipTrigger>
-                          <TooltipContent>Combine this caption with the next line</TooltipContent>
+                          <TooltipContent>Merge with next line</TooltipContent>
                         </Tooltip>
 
                         <Button
                           type="button"
-                          variant="destructive"
-                          size="sm"
+                          variant="ghost"
+                          size="icon-xs"
                           aria-label={`Delete caption ${index + 1}`}
                           onClick={() => onCaptionsChange(captions.filter((c) => c.id !== cue.id))}
-                          className="ml-auto cursor-pointer"
+                          className="cursor-pointer text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                          <span>Delete</span>
                         </Button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+
+                    <div>
+                      <Label htmlFor={`cap-text-${cue.id}`} className="sr-only">
+                        Caption {index + 1} text
+                      </Label>
+                      <Textarea
+                        id={`cap-text-${cue.id}`}
+                        rows={1}
+                        placeholder="Type what is spoken in this line…"
+                        value={cue.text}
+                        onChange={(e) => {
+                          const text = e.target.value;
+                          onCaptionsChange(
+                            captions.map((c) => (c.id === cue.id ? { ...c, text } : c))
+                          );
+                        }}
+                        className="min-h-[38px] py-1.5 text-sm bg-background/80"
+                      />
+                    </div>
+
+                    {cueWords.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[11px] font-medium text-muted-foreground mr-0.5">
+                          Spotlight:
+                        </span>
+                        {cueWords.map((word, wi) => {
+                          const marked = isWordSpotlightKey(word, cue, spotlightAuto);
+                          return (
+                            <button
+                              key={`${cue.id}_chip_${wi}`}
+                              type="button"
+                              aria-pressed={marked}
+                              onClick={() => {
+                                const updated = toggleCueKeyWord(cue, word, spotlightAuto);
+                                onCaptionsChange(
+                                  captions.map((c) => (c.id === cue.id ? updated : c))
+                                );
+                              }}
+                              title="Click to toggle Spotlight key word emphasis"
+                              className={`cap-word-chip px-1.5 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                                marked
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-background/60 text-muted-foreground border-border/70 hover:text-foreground'
+                              }`}
+                            >
+                              {word}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
             <Button
               type="button"
               variant="outline"
-              size="default"
+              size="sm"
               onClick={handleAddRow}
               className="w-full border-dashed cursor-pointer font-semibold"
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
-              <span>Add next caption line</span>
+              <span>Add next line</span>
             </Button>
           </div>
         )}
@@ -1193,15 +1158,15 @@ export function CaptionsPanel({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display font-bold">
-              Paste script → Auto-time captions
+              Paste a script or .srt text
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Paste your voiceover or dialogue below. It will be split cleanly across your active trim window ({Math.max(2, Math.round((trimEnd > trimStart ? trimEnd - trimStart : duration || 10) * 10) / 10)}s) using smart phrase breaks.
+              Paste plain text and it is timed across your trim window ({Math.max(2, Math.round((trimEnd > trimStart ? trimEnd - trimStart : duration || 10) * 10) / 10)}s) with smart phrase breaks. Paste .srt text and its own timings are kept.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="paste-script-textarea" className="text-xs">
-              Voiceover script
+              Script or .srt text
             </Label>
             <Textarea
               id="paste-script-textarea"
@@ -1220,6 +1185,16 @@ export function CaptionsPanel({
               onClick={() => {
                 const clean = scriptDraft.trim();
                 if (!clean) return;
+                if (clean.includes('-->')) {
+                  const fromSrt = parseSrt(clean, trimStart);
+                  if (fromSrt.length) {
+                    onCaptionsChange(fromSrt);
+                    setScriptDraft('');
+                    setScriptOpen(false);
+                    setStatusMsg(`Imported ${fromSrt.length} captions from pasted .srt text.`);
+                    return;
+                  }
+                }
                 const spanEnd =
                   trimEnd > trimStart
                     ? trimEnd
@@ -1236,7 +1211,7 @@ export function CaptionsPanel({
                 );
               }}
             >
-              Generate timed captions
+              Add captions
             </Button>
           </DialogFooter>
         </DialogContent>
