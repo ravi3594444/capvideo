@@ -3,10 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "node --import tsx server.ts",
     "build": "vite build",
-    "start": "node server.ts",
+    "start": "node --import tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
@@ -27,7 +30,7 @@
     "eslint": "^10.15.0",
     "express": "^4.21.2",
     "firebase": "^13.3.0",
-    "firebase-admin": "^14.5.1",
+    "firebase-admin": "13",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "multer": "^2.5.0",

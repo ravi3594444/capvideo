@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import app from './backend/app.ts';
+import app from './backend/app';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';

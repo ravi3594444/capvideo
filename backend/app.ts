@@ -1,8 +1,8 @@
 import express, { type Request, type Response } from 'express';
 import multer from 'multer';
-import { allowAiUsage, firebaseReady, requireAiUser } from './firebase.ts';
-import { blobReady, createTranscriptionUpload, prepareTranscriptionUpload, removeTranscriptionUpload } from './uploads.ts';
-import { DIRECT_TRANSCRIPTION_BYTES, TRANSCRIPTION_CONTENT_TYPES } from '../shared/transcription.ts';
+import { allowAiUsage, firebaseReady, requireAiUser } from './firebase';
+import { blobReady, createTranscriptionUpload, prepareTranscriptionUpload, removeTranscriptionUpload } from './uploads';
+import { DIRECT_TRANSCRIPTION_BYTES, TRANSCRIPTION_CONTENT_TYPES } from '../shared/transcription';
 
 const upload = multer({
   storage: multer.memoryStorage(),
