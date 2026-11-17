@@ -34,7 +34,8 @@ const ENV_ROWS = [
 const ENV_SNIPPET = `# Vercel Project Settings -> Environment Variables (Server-side only, never VITE_ or NEXT_PUBLIC_)
 DEEPGRAM_API_KEY="dg_your_deepgram_server_key"
 INCEPTION_API_KEY="inc_your_inception_mercury3_key"
-APP_URL="https://your-app.vercel.app"`;
+FIREBASE_SERVICE_ACCOUNT_JSON="YOUR_FIREBASE_SERVICE_ACCOUNT_JSON"
+# Connect a private Vercel Blob store to set BLOB_READ_WRITE_TOKEN for larger clips.`;
 
 export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
   const [copied, setCopied] = useState(false);
@@ -68,7 +69,7 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
                 01. Backend Environment Variables (Secrets)
               </CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                Live server environment status
+                AI provider readiness
               </CardDescription>
             </div>
           </div>
@@ -108,7 +109,7 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                           <CircleAlert className="w-3.5 h-3.5" aria-hidden="true" />
-                          <span>Not set</span>
+                          <span>Unavailable</span>
                         </span>
                       )}
                     </TableCell>
@@ -162,6 +163,9 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
         </CardHeader>
         <CardContent>
           <ol className="list-decimal pl-5 space-y-2 text-sm text-muted-foreground leading-relaxed">
+            <li>
+              Enable Web Analytics in the Vercel project dashboard, then deploy. Connect a private Blob store for clips over 4 MB.
+            </li>
             <li>
               Your Firebase Web SDK config (<code className="font-mono">firebase-applet-config.json</code>) is already bundled safely for client-side Auth &amp; Firestore — Firebase Web API keys are public identifiers secured by your <code className="font-mono">firestore.rules</code>.
             </li>

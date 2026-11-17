@@ -19,7 +19,8 @@ Server-side secrets configured in Vercel Project Settings -> Environment Variabl
 
 - `DEEPGRAM_API_KEY`: Powers `/api/transcribe` (Deepgram Nova-2 audio transcription).
 - `INCEPTION_API_KEY`: Powers `/api/captions/refine` (Inception Mercury 3 text clean-up & translation).
-- `APP_URL`: Canonical deployment URL used for self-referential metadata and callbacks.
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: Verifies Google sign-in and manages AI usage limits.
+- `BLOB_READ_WRITE_TOKEN`: Enables temporary private uploads for automatic captions on larger clips.
 
 ## Key Routes
 

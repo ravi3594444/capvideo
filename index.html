@@ -74,10 +74,10 @@
               },
               {
                 "@type": "Question",
-                "name": "How are videos larger than 24 MB handled for transcription?",
+                "name": "How are videos larger than 4 MB handled for transcription?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Files over 24 MB are decoded locally in the browser and re-encoded as a compact 16 kHz mono WAV covering your active trim window before calling /api/transcribe, keeping uploads fast within Vercel payload limits."
+                  "text": "For automatic captions, clips from 4 MB up to 50 MB are uploaded privately before Deepgram transcribes them. The upload is deleted after processing. Editing and exporting stay in your browser."
                 }
               },
               {

@@ -63,11 +63,18 @@ import {
   type CaptionCue,
   type WordsPerPage,
 } from '../utils/captions';
-import { extractTrimmedWav } from '../utils/audioEngine';
+import { aiHeaders } from '../lib/aiAccess';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  DIRECT_TRANSCRIPTION_BYTES,
+  MAX_TRANSCRIPTION_BYTES,
+  getTranscriptionContentType,
+} from '../../shared/transcription';
 
 export interface ServerCapabilities {
   deepgram: boolean;
   inception: boolean;
+  largeUploads: boolean;
 }
 
 interface CaptionsPanelProps {
@@ -135,6 +142,7 @@ export function CaptionsPanel({
   onOpenDeployGuide,
   onRequestVideo,
 }: CaptionsPanelProps) {
+  const { user, signInWithGoogle } = useAuth();
   const [generating, setGenerating] = useState(false);
   const [polishing, setPolishing] = useState(false);
   const [pickingKeywords, setPickingKeywords] = useState(false);
@@ -189,33 +197,56 @@ export function CaptionsPanel({
       return;
     }
 
+    const contentType = getTranscriptionContentType(videoFile);
+    if (!contentType || !videoFile.size || videoFile.size > MAX_TRANSCRIPTION_BYTES) {
+      setStatusMsg('Choose a supported clip up to 50 MB for automatic captions.');
+      return;
+    }
+    if (capabilities && !capabilities.deepgram) {
+      setStatusMsg('Automatic captions are unavailable. You can still add or import captions manually.');
+      return;
+    }
+    if (videoFile.size > DIRECT_TRANSCRIPTION_BYTES && capabilities && !capabilities.largeUploads) {
+      setStatusMsg('Large clip uploads are unavailable. Try a clip under 4 MB or import captions.');
+      return;
+    }
+
     setGenerating(true);
     setMissingEnv(null);
-    setStatusMsg('Preparing audio track from your video file…');
+    setStatusMsg(user ? 'Preparing to upload your clip…' : 'Sign in with Google to start…');
 
     try {
-      let uploadBlob: Blob = videoFile;
-      let uploadName = videoFile.name || 'clip.mp4';
-      let offset = 0;
-
-      if (videoFile.size > 24 * 1048576) {
-        setStatusMsg('Compressing trimmed audio to 16 kHz mono WAV in browser…');
-        const wav = await extractTrimmedWav(videoFile, trimStart, trimEnd || duration || 60);
-        uploadBlob = wav.blob;
-        uploadName = wav.name;
-        offset = wav.offset;
+      const headers = await aiHeaders(signInWithGoogle);
+      let request: RequestInit;
+      setStatusMsg('Uploading your clip for Deepgram transcription…');
+      if (videoFile.size > DIRECT_TRANSCRIPTION_BYTES) {
+        const grant = await fetch('/api/transcription-upload', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ size: videoFile.size, contentType }),
+        });
+        const { url, uploadId, error } = await grant.json();
+        if (!grant.ok) throw new Error(error || 'Could not prepare the upload.');
+        const uploaded = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: videoFile,
+        });
+        if (!uploaded.ok) throw new Error('The clip upload failed. Try again.');
+        request = {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uploadId, language: shortLang }),
+        };
+      } else {
+        const form = new FormData();
+        form.append('file', new Blob([videoFile], { type: contentType }), videoFile.name || 'clip.mp4');
+        form.append('language', shortLang);
+        request = { method: 'POST', headers, body: form };
       }
 
       setStatusMsg('Transcribing speech with Deepgram Nova-2…');
-      const fd = new FormData();
-      fd.append('file', uploadBlob, uploadName);
-      fd.append('language', shortLang);
-
-      const res = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: fd,
-      });
-
+      const res = await fetch('/api/transcribe', request);
       const data = await res.json();
       if (!res.ok) {
         if (data?.missingEnvVar) setMissingEnv(String(data.missingEnvVar));
@@ -226,7 +257,7 @@ export function CaptionsPanel({
       const effectiveEnd = trimEnd > trimStart ? trimEnd : duration || Number.POSITIVE_INFINITY;
 
       if (Array.isArray(data.words) && data.words.length > 0) {
-        made = captionsFromWords(data.words, offset, trimStart, effectiveEnd, wordsPerPage);
+        made = captionsFromWords(data.words, 0, trimStart, effectiveEnd, wordsPerPage);
       }
       if (!made.length && Array.isArray(data.utterances) && data.utterances.length > 0) {
         made = captionsFromSegments(
@@ -235,7 +266,7 @@ export function CaptionsPanel({
             start: u.start,
             end: u.end,
           })),
-          offset,
+          0,
           trimStart,
           effectiveEnd
         );
@@ -270,11 +301,13 @@ export function CaptionsPanel({
 
     setPolishing(true);
     setMissingEnv(null);
-    setStatusMsg('Fixing punctuation and typos with Inception Mercury 3…');
+    setStatusMsg(user ? 'Fixing punctuation and typos with Inception Mercury 3…' : 'Sign in with Google to start…');
     try {
+      const headers = await aiHeaders(signInWithGoogle);
+      setStatusMsg('Fixing punctuation and typos with Inception Mercury 3…');
       const res = await fetch('/api/captions/refine', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           texts: captions.map((c) => c.text),
           action: 'cleanup',
@@ -312,10 +345,11 @@ export function CaptionsPanel({
 
     setPickingKeywords(true);
     try {
-      if (capabilities?.inception) {
+      if (capabilities?.inception && user) {
+        const headers = await aiHeaders();
         const res = await fetch('/api/captions/refine', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...headers, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             texts: captions.map((c) => c.text),
             action: 'keywords',
@@ -337,18 +371,19 @@ export function CaptionsPanel({
           }
         }
       }
-
-      // Deterministic local rule engine fallback (VideoCaptions.ai rules)
-      onCaptionsChange(
-        captions.map((c) => ({
-          ...c,
-          keyWords: extractAutoKeyWords(c.text),
-        }))
-      );
-      setStatusMsg('Highlighted Spotlight key words (numbers, entities & power nouns) across all cues.');
+    } catch {
+      // Fall back to the local keyword picker when cloud AI is unavailable.
     } finally {
       setPickingKeywords(false);
     }
+
+    onCaptionsChange(
+      captions.map((c) => ({
+        ...c,
+        keyWords: extractAutoKeyWords(c.text),
+      }))
+    );
+    setStatusMsg('Highlighted Spotlight key words (numbers, entities & power nouns) across all cues.');
   };
 
   const handleDensityRegroup = (nextDensity: WordsPerPage) => {
@@ -574,6 +609,10 @@ export function CaptionsPanel({
           </Button>
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          Auto-caption sends your clip to Deepgram. Editing and export happen on your device.
+        </p>
+
         <div className="flex flex-wrap items-center gap-1.5">
           <Button
             type="button"
@@ -633,15 +672,7 @@ export function CaptionsPanel({
             )
           )}
 
-          {capabilities !== null && !capabilities.deepgram && (
-            <button
-              type="button"
-              onClick={onOpenDeployGuide}
-              className="ml-auto text-[11px] font-medium text-muted-foreground hover:text-foreground underline-offset-2 hover:underline cursor-pointer"
-            >
-              Deepgram key needed
-            </button>
-          )}
+
         </div>
 
         <input

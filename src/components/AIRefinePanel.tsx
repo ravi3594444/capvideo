@@ -13,6 +13,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { aiHeaders } from '../lib/aiAccess';
+import { useAuth } from '../contexts/AuthContext';
 import type { CaptionCue } from '../utils/captions';
 import type { ServerCapabilities } from './CaptionsPanel';
 
@@ -60,6 +62,7 @@ export function AIRefinePanel({
   onCaptionsChange,
   onOpenDeployGuide,
 }: AIRefinePanelProps) {
+  const { signInWithGoogle } = useAuth();
   const [targetLang, setTargetLang] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -101,9 +104,10 @@ export function AIRefinePanel({
     setVoiceStatus('Synthesizing natural AI voice with Deepgram Aura…');
 
     try {
+      const headers = await aiHeaders(signInWithGoogle);
       const res = await fetch('/api/voiceover', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: textToSpeak,
           voice: selectedVoice,
@@ -148,9 +152,10 @@ export function AIRefinePanel({
     setStatus('Sending caption text only to Inception Mercury 3 (/api/captions/refine)…');
 
     try {
+      const headers = await aiHeaders(signInWithGoogle);
       const res = await fetch('/api/captions/refine', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           texts: captions.map((c) => c.text),
           action,

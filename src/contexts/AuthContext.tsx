@@ -7,7 +7,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   authError: string | null;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<User | null>;
   signOutUser: () => Promise<void>;
   clearAuthError: () => void;
 }
@@ -37,10 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     setAuthError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
+      return (await signInWithPopup(auth, googleProvider)).user;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Google sign-in failed.';
       setAuthError(msg);
+      return null;
     }
   };
 

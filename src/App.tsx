@@ -210,6 +210,7 @@ function StudioApp() {
           setCapabilities({
             deepgram: Boolean(data.deepgram),
             inception: Boolean(data.inception),
+            largeUploads: Boolean(data.largeUploads),
           });
         }
       })
