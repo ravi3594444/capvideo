@@ -4,6 +4,8 @@ import {
   findPreviousCaption,
   getActiveWordIndex,
   getCaptionContainerSpec,
+  getCaptionHeadlineIndex,
+  getCaptionWordRows,
   getWordVisualSpec,
   isNegativeEmphasisWord,
   isWordSpotlightKey,
@@ -176,12 +178,12 @@ export async function exportBurnedInWebM(
   };
 
   const fontPx = Math.round(styleConfig.fontSize * (canvas.width / 340));
-  const containerSpec = getCaptionContainerSpec(styleConfig.style);
   const effectiveReveal = resolveEffectiveReveal(styleConfig);
   const effectiveEffect = resolveEffectiveEffect(styleConfig);
   const spotlightAuto = styleConfig.spotlightAuto ?? true;
   const pageLayout = styleConfig.pageLayout ?? 'replace';
   const useDifference = styleConfig.blendMode === 'difference';
+  const containerSpec = getCaptionContainerSpec(styleConfig.style, effectiveEffect, styleConfig.accentColor);
   const wordGapPx = fontPx * (clampWordSpacing(styleConfig.wordSpacing) + 0.08);
 
   const drawFrame = () => {
@@ -208,19 +210,10 @@ export async function exportBurnedInWebM(
           : null;
 
       const wrapSize = styleConfig.wordsPerPage === '2' ? 2 : styleConfig.wordsPerPage === '3' ? 3 : styleConfig.wordsPerPage === '4' ? 4 : 4;
-      const lines: { word: string; gi: number }[][] = [];
-      if (effectiveReveal === 'pop') {
-        if (words[on]) lines.push([{ word: words[on], gi: on }]);
-      } else {
-        for (let i = 0; i < words.length; i += wrapSize) {
-          lines.push(
-            words.slice(i, i + wrapSize).map((word, wi) => ({
-              word,
-              gi: i + wi,
-            }))
-          );
-        }
-      }
+      const headlineIndex = getCaptionHeadlineIndex(cue, words, styleConfig.style, effectiveEffect);
+      const lines = effectiveReveal === 'pop'
+        ? words[on] ? [[{ word: words[on], index: on }]] : []
+        : getCaptionWordRows(words, headlineIndex, wrapSize);
 
       const lineHeight = fontPx * 1.38;
       const stackOffset = prevCue ? lineHeight * 0.95 : 0;
@@ -248,7 +241,7 @@ export async function exportBurnedInWebM(
 
       const lineSpecs = lines.map((line) =>
         line
-          .map(({ word, gi }) => {
+          .map(({ word, index: gi }) => {
             const isKey = isWordSpotlightKey(word, cue, spotlightAuto);
             const spec = getWordVisualSpec({
               style: styleConfig.style,
@@ -262,6 +255,7 @@ export async function exportBurnedInWebM(
               cueElapsedSec: cueElapsed,
               cueDurationSec: cueDuration,
               isSpotlightKey: isKey,
+              isHeadlineWord: gi === headlineIndex,
               isNegative: isNegativeEmphasisWord(word),
               currentTimeSec: video.currentTime,
             });
@@ -319,7 +313,7 @@ export async function exportBurnedInWebM(
           if (spec.backgroundColor) {
             ctx.fillStyle = spec.backgroundColor;
             ctx.beginPath();
-            ctx.roundRect(x - 5, y - px * 0.64, widthMeasured + 10, px * 1.28, 6);
+            ctx.roundRect(x - 5, y - px * 0.64, widthMeasured + 10, px * 1.28, spec.borderRadiusEm == null ? 6 : px * spec.borderRadiusEm);
             ctx.fill();
           }
 
@@ -359,6 +353,13 @@ export async function exportBurnedInWebM(
             ctx.shadowBlur = px * 0.55;
             ctx.fillStyle = spec.color;
             ctx.fillText(spec.displayText, x, y);
+          }
+
+          if (spec.outlineColor) {
+            ctx.lineWidth = px * 0.135;
+            ctx.strokeStyle = spec.outlineColor;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(spec.displayText, x, y);
           }
 
           ctx.fillStyle = spec.color;

@@ -20,10 +20,6 @@ import {
   clampWordSpacing,
   CURATED_PRESET_PACKS,
   ENTRANCE_EFFECT_OPTIONS,
-  getCaptionContainerSpec,
-  getWordVisualSpec,
-  isNegativeEmphasisWord,
-  isWordSpotlightKey,
   REVEAL_MODE_OPTIONS,
   resolveEffectiveEffect,
   resolveEffectiveReveal,
@@ -37,6 +33,7 @@ import {
 } from '../utils/captions';
 import type { CloudStylePreset } from '../lib/firestoreService';
 import { useVideoFrame } from '../hooks/useVideoFrame';
+import { CaptionOverlay } from './CaptionOverlay';
 
 interface StylePanelProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -249,9 +246,6 @@ export function StylePanel({
     CAPTION_FONT_OPTIONS.find((f) => f.id === displayedConfig.fontFamily) ?? CAPTION_FONT_OPTIONS[0];
   const effectiveReveal = resolveEffectiveReveal(displayedConfig);
   const effectiveEffect = resolveEffectiveEffect(displayedConfig);
-  const blendMode: CaptionBlendMode = displayedConfig.blendMode ?? 'normal';
-  const spotlightAuto = displayedConfig.spotlightAuto ?? true;
-  const wordSpacingEm = clampWordSpacing(displayedConfig.wordSpacing);
 
   useEffect(() => {
     if (!animating) return;
@@ -268,12 +262,12 @@ export function StylePanel({
   }, [animating]);
 
   const cueForPreview = sampleCue && sampleCue.text.trim() ? sampleCue : FALLBACK_PREVIEW_CUE;
-  const previewWords = cueForPreview.text.trim().split(/\s+/).filter(Boolean).slice(0, 6);
-  const activeWordIdx =
-    previewWords.length > 0
-      ? Math.min(previewWords.length - 1, Math.floor((loopElapsedSec / 2.0) * previewWords.length))
-      : 0;
-  const previewContainerSpec = getCaptionContainerSpec(displayedConfig.style);
+  const previewCue = {
+    ...cueForPreview,
+    text: cueForPreview.text.trim().split(/\s+/).slice(0, 6).join(' '),
+    start: 0,
+    end: 2,
+  };
   const activeStyleMeta =
     CAPTION_STYLE_CATALOG.find((s) => s.id === displayedConfig.style) ?? CAPTION_STYLE_CATALOG[0];
 
@@ -357,13 +351,7 @@ export function StylePanel({
         </div>
 
         <div
-          className={`relative h-[104px] lg:h-auto lg:min-h-[90px] rounded-lg border border-white/10 px-4 flex justify-center overflow-hidden ${
-            displayedConfig.position === 'pos-centre'
-              ? 'items-center'
-              : displayedConfig.position === 'pos-third'
-                ? 'items-end pb-[22%]'
-                : 'items-end pb-2.5'
-          }`}
+          className="style-inspector-preview relative h-[132px] rounded-lg border border-white/10 overflow-hidden"
           style={
             videoFrame
               ? {
@@ -380,93 +368,11 @@ export function StylePanel({
           <span className="absolute left-2 top-1.5 text-[11px] text-white/75 bg-black/45 rounded px-1.5 py-0.5">
             {videoFrame ? 'On your video' : 'Sample backdrop'}
           </span>
-          <div
-            className={`text-center leading-tight ${displayedConfig.style}`}
-            style={{
-              fontSize: `${Math.min(24, Math.max(16, Math.round(displayedConfig.fontSize * 0.88)))}px`,
-              mixBlendMode: blendMode === 'difference' ? 'difference' : undefined,
-            }}
-          >
-            {(() => {
-              const wordNodes = previewWords
-                .map((word, idx) => {
-                  const isKey = isWordSpotlightKey(word, cueForPreview, spotlightAuto);
-                  const spec = getWordVisualSpec({
-                    style: displayedConfig.style,
-                    fontFamily: displayedConfig.fontFamily,
-                    word,
-                    wordIndex: idx,
-                    activeWordIndex: activeWordIdx,
-                    accentColor: displayedConfig.accentColor,
-                    revealMode: effectiveReveal,
-                    effect: effectiveEffect,
-                    cueElapsedSec: loopElapsedSec,
-                    cueDurationSec: 2.0,
-                    isSpotlightKey: isKey,
-                    isNegative: isNegativeEmphasisWord(word),
-                    currentTimeSec: loopElapsedSec,
-                  });
-                  if (spec.isHidden) return null;
-
-                  const transforms: string[] = [];
-                  if (spec.scale !== 1) transforms.push(`scale(${spec.scale})`);
-                  if (spec.translateYEm !== 0) transforms.push(`translateY(${spec.translateYEm}em)`);
-                  if (spec.rotateDeg !== 0) transforms.push(`rotate(${spec.rotateDeg}deg)`);
-
-                  let customShadow = spec.shadowMode === 'none' ? 'none' : undefined;
-                  if (spec.glitchColorShift && spec.glitchDxPx) {
-                    const dx = spec.glitchDxPx;
-                    customShadow = `${-dx}px 0 rgba(255,45,85,0.8), ${dx}px 0 rgba(34,211,238,0.8)`;
-                  }
-
-                  return (
-                    <span
-                      key={`live_${idx}`}
-                      style={{
-                        display: 'inline-block',
-                        padding: '2px 3px',
-                        borderRadius: '5px',
-                        fontFamily: spec.fontCss,
-                        fontWeight: spec.fontWeight,
-                        fontStyle: spec.fontStyle,
-                        color: spec.color,
-                        opacity: spec.opacity,
-                        backgroundColor: spec.backgroundColor ?? undefined,
-                        marginInline:
-                          spec.scale > 1.02 ? `${((spec.scale - 1) * 0.58).toFixed(2)}em` : undefined,
-                        transform: transforms.length ? transforms.join(' ') : undefined,
-                        textShadow: customShadow,
-                      }}
-                    >
-                      {spec.displayText}
-                    </span>
-                  );
-                })
-                .filter(Boolean);
-
-              if (previewContainerSpec.hasFullLineBackdrop) {
-                return (
-                  <span
-                    className="inline-flex flex-wrap justify-center items-baseline gap-y-[0.12em] rounded-lg px-3 py-1.5"
-                    style={{
-                      columnGap: `${wordSpacingEm}em`,
-                      backgroundColor: previewContainerSpec.backdropColor ?? undefined,
-                    }}
-                  >
-                    {wordNodes}
-                  </span>
-                );
-              }
-              return (
-                <div
-                  className="inline-flex flex-wrap justify-center items-baseline gap-y-[0.12em]"
-                  style={{ columnGap: `${wordSpacingEm}em` }}
-                >
-                  {wordNodes}
-                </div>
-              );
-            })()}
-          </div>
+          <CaptionOverlay
+            cue={previewCue}
+            currentTime={loopElapsedSec}
+            config={{ ...displayedConfig, position: 'pos-centre' }}
+          />
         </div>
       </div>
 

@@ -400,6 +400,72 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
       fontSize: 22,
     },
   },
+  {
+    id: 'pack-quiet-reveal',
+    label: 'Quiet Reveal',
+    subtitle: 'Clean white type, one word at a time',
+    apply: { position: 'pos-third', style: 'st-minimal', fontFamily: 'manrope', revealMode: 'build', effect: 'fadeIn', fontSize: 22 },
+  },
+  {
+    id: 'pack-headline-beat',
+    label: 'Headline Beat',
+    subtitle: 'An oversized keyword on its own line',
+    apply: { position: 'pos-third', style: 'st-minimal', fontFamily: 'manrope', revealMode: 'flash', effect: 'scaleUp', fontSize: 23, accentColor: '#ffffff' },
+  },
+  {
+    id: 'pack-comic-beat',
+    label: 'Comic Beat',
+    subtitle: 'Violet letters with a white outline',
+    apply: { style: 'st-pop', fontFamily: 'impact', revealMode: 'pop', effect: 'flipUp', fontSize: 30, accentColor: '#ad92ff', position: 'pos-third' },
+  },
+  {
+    id: 'pack-amber-stack',
+    label: 'Amber Stack',
+    subtitle: 'A condensed, amber headline',
+    apply: { position: 'pos-third', style: 'st-hormozi', fontFamily: 'impact', revealMode: 'flash', effect: 'maskSlide', fontSize: 22, accentColor: '#ffbc61' },
+  },
+  {
+    id: 'pack-electric-blue',
+    label: 'Electric Blue',
+    subtitle: 'Cool-blue emphasis with a slight wave',
+    apply: { position: 'pos-third', style: 'st-font-snap', fontFamily: 'impact', revealMode: 'flash', effect: 'wave', fontSize: 22, accentColor: '#74c8ff' },
+  },
+  {
+    id: 'pack-lavender-note',
+    label: 'Lavender Note',
+    subtitle: 'Soft pill around the spoken word',
+    apply: { position: 'pos-third', style: 'st-highlight', fontFamily: 'manrope', revealMode: 'karaoke', effect: 'fadeIn', fontSize: 21, accentColor: '#d3c1fd', wordSpacing: 0.2 },
+  },
+  {
+    id: 'pack-white-label',
+    label: 'White Label',
+    subtitle: 'Dark text on a clean white strip',
+    apply: { position: 'pos-third', style: 'st-minimal', fontFamily: 'mono', revealMode: 'flash', effect: 'flipUp', fontSize: 19, accentColor: '#222222' },
+  },
+  {
+    id: 'pack-red-stamp',
+    label: 'Red Stamp',
+    subtitle: 'A red tag that lands on each beat',
+    apply: { position: 'pos-third', style: 'st-typewriter', fontFamily: 'mono', revealMode: 'pop', effect: 'flipUp', fontSize: 24, accentColor: '#e23652' },
+  },
+  {
+    id: 'pack-marker-mix',
+    label: 'Marker Mix',
+    subtitle: 'Handwritten type with two-tone emphasis',
+    apply: { position: 'pos-third', style: 'st-kinetic-mix', fontFamily: 'manrope', revealMode: 'flash', effect: 'wave', fontSize: 30, accentColor: '#d7fb7d' },
+  },
+  {
+    id: 'pack-dispatch',
+    label: 'Dispatch',
+    subtitle: 'A warm orange tag in a simple caption',
+    apply: { position: 'pos-third', style: 'st-highlight', fontFamily: 'mono', revealMode: 'karaoke', effect: 'maskSlide', fontSize: 20, accentColor: '#ffbf97' },
+  },
+  {
+    id: 'pack-editorial-strip',
+    label: 'Editorial Strip',
+    subtitle: 'Cream serif lettering on a red masthead',
+    apply: { position: 'pos-third', style: 'st-editorial', fontFamily: 'editorial', revealMode: 'flash', effect: 'maskSlide', fontSize: 24, accentColor: '#9d2438' },
+  },
 ];
 
 export const REVEAL_MODE_OPTIONS: { id: RevealMode; label: string; desc: string }[] = [
@@ -439,17 +505,40 @@ export interface CaptionContainerSpec {
   backdropColor: string | null;
 }
 
-export function getCaptionContainerSpec(style: CaptionStyle): CaptionContainerSpec {
-  if (style === 'st-cinema') {
-    return {
-      hasFullLineBackdrop: true,
-      backdropColor: 'rgba(10, 10, 14, 0.78)',
-    };
+export function getCaptionContainerSpec(style: CaptionStyle, effect?: EntranceEffect, accentColor?: string): CaptionContainerSpec {
+  const backdropColor = style === 'st-cinema' ? 'rgba(10, 10, 14, 0.78)'
+    : style === 'st-minimal' && effect === 'flipUp' ? '#f9f8f6'
+    : style === 'st-editorial' && effect === 'maskSlide' ? accentColor ?? '#9d2438'
+    : null;
+  return { hasFullLineBackdrop: Boolean(backdropColor), backdropColor };
+}
+
+function usesHeadlineLayout(style: CaptionStyle, effect: EntranceEffect): boolean {
+  return (style === 'st-minimal' && effect === 'scaleUp')
+    || (style === 'st-hormozi' && effect === 'maskSlide')
+    || (style === 'st-font-snap' && effect === 'wave');
+}
+
+export function getCaptionHeadlineIndex(cue: CaptionCue, words: string[], style: CaptionStyle, effect: EntranceEffect): number {
+  if (!usesHeadlineLayout(style, effect) || !words.length) return -1;
+  const markedIndex = words.findIndex(word => cue.keyWords?.includes(normalizeToken(word)));
+  if (markedIndex >= 0) return markedIndex;
+  return words.reduce((longestIndex, word, index) =>
+    normalizeToken(word).length > normalizeToken(words[longestIndex]).length ? index : longestIndex, 0);
+}
+
+export function getCaptionWordRows(words: string[], headlineIndex: number, wordsPerRow: number) {
+  const indexed = words.map((word, index) => ({ word, index }));
+  const groups = headlineIndex < 0 ? [indexed] : [
+    indexed.slice(0, headlineIndex),
+    indexed.slice(headlineIndex, headlineIndex + 1),
+    indexed.slice(headlineIndex + 1),
+  ];
+  const rows: (typeof indexed)[] = [];
+  for (const group of groups) {
+    for (let i = 0; i < group.length; i += wordsPerRow) rows.push(group.slice(i, i + wordsPerRow));
   }
-  return {
-    hasFullLineBackdrop: false,
-    backdropColor: null,
-  };
+  return rows;
 }
 
 // =====================================================================
@@ -744,6 +833,8 @@ export interface WordVisualSpec {
   glitchColorShift?: boolean;
   isSpotlightKey?: boolean;
   isHidden?: boolean;
+  outlineColor?: string;
+  borderRadiusEm?: number;
 }
 
 const SCRAMBLE_GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%';
@@ -776,6 +867,7 @@ export function getWordVisualSpec(opts: {
   cueElapsedSec?: number;
   cueDurationSec?: number;
   isSpotlightKey?: boolean;
+  isHeadlineWord?: boolean;
   isNegative?: boolean;
   currentTimeSec?: number;
 }): WordVisualSpec {
@@ -791,6 +883,7 @@ export function getWordVisualSpec(opts: {
     cueElapsedSec = 0.25,
     cueDurationSec = 1.5,
     isSpotlightKey = false,
+    isHeadlineWord = false,
     isNegative = false,
     currentTimeSec = 0,
   } = opts;
@@ -1043,6 +1136,47 @@ export function getWordVisualSpec(opts: {
         shadowMode: isOn ? 'none' : 'outline',
       };
       break;
+  }
+
+  if (usesHeadlineLayout(style, effect)) {
+    spec.fontCss = style === 'st-minimal' ? baseFont : impactFont;
+    spec.fontWeight = isHeadlineWord ? 800 : 600;
+    spec.fontStyle = 'normal';
+    spec.color = isHeadlineWord ? accentColor : '#ffffff';
+    spec.displayText = style !== 'st-minimal' && isHeadlineWord ? word.toUpperCase() : word;
+    spec.scale = isHeadlineWord ? 1.42 : 0.8;
+    spec.opacity = 1;
+  }
+
+  if (style === 'st-pop' && effect === 'flipUp') {
+    spec.displayText = word.toUpperCase();
+    spec.outlineColor = '#ffffff';
+    spec.shadowMode = 'soft';
+  } else if (style === 'st-minimal' && effect === 'flipUp') {
+    spec.color = '#18181a';
+    spec.shadowMode = 'none';
+    spec.opacity = 1;
+  } else if (style === 'st-editorial' && effect === 'maskSlide') {
+    spec.color = '#fff3e1';
+    spec.fontStyle = 'normal';
+    spec.shadowMode = 'none';
+    spec.scale = 1;
+  } else if (style === 'st-typewriter' && effect === 'flipUp') {
+    spec.displayText = word.toUpperCase();
+    spec.color = '#ffffff';
+    spec.backgroundColor = isOn ? accentColor : null;
+    spec.borderRadiusEm = 0.14;
+    spec.shadowMode = 'none';
+  } else if (style === 'st-kinetic-mix' && effect === 'wave') {
+    spec.displayText = word;
+    spec.fontCss = '"Caveat", "Playfair Display", Georgia, cursive';
+    spec.fontWeight = 700;
+    spec.fontStyle = 'normal';
+    spec.color = wordIndex % 2 === 0 ? accentColor : '#ffc1a9';
+    spec.scale = isOn ? 1.1 : 1;
+  } else if (style === 'st-highlight' && isOn) {
+    spec.backgroundColor = accentColor;
+    if (effect === 'fadeIn' || effect === 'maskSlide') spec.borderRadiusEm = 0.35;
   }
 
   // Axis 1: Reveal Mode behavior

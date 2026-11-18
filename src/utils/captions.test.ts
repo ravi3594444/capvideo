@@ -9,6 +9,7 @@ import {
   commitCaptionHistory,
   createCaptionHistory,
   createNextCue,
+  CURATED_PRESET_PACKS,
   DEFAULT_STYLE_CONFIG,
   encodeWav16kMono,
   findActiveCaption,
@@ -16,6 +17,8 @@ import {
   formatSrtTime,
   getActiveWordIndex,
   getCaptionContainerSpec,
+  getCaptionHeadlineIndex,
+  getCaptionWordRows,
   getWordVisualSpec,
   mergeCaptionWithNext,
   parseSrt,
@@ -188,6 +191,21 @@ test('createNextCue and snapCueStartToTime advance sequentially and snap cleanly
   const snapped = snapCueStartToTime(existing[0], 5.4, 8.0);
   assert.equal(snapped.start, 5.4);
   assert.equal(snapped.end, 7.4);
+});
+
+test('curated headline, outline, and label treatments resolve from saved style settings', () => {
+  const settings = (id: string) => ({ ...DEFAULT_STYLE_CONFIG, ...CURATED_PRESET_PACKS.find(pack => pack.id === id)?.apply });
+  const cue = { id: 'headline', start: 0, end: 2, text: 'Make every word count.', keyWords: ['word'] };
+  const words = cue.text.split(' ');
+  const headline = settings('pack-headline-beat');
+  const index = getCaptionHeadlineIndex(cue, words, headline.style, headline.effect ?? 'none');
+  assert.deepEqual(getCaptionWordRows(words, index, 4).map(row => row.map(item => item.word)), [['Make', 'every'], ['word'], ['count.']]);
+  const comic = settings('pack-comic-beat');
+  const comicWord = getWordVisualSpec({ ...comic, word: 'word', wordIndex: 2, activeWordIndex: 2 });
+  assert.equal(comicWord.outlineColor, '#ffffff');
+  assert.equal(comicWord.displayText, 'WORD');
+  const label = settings('pack-white-label');
+  assert.equal(getCaptionContainerSpec(label.style, label.effect, label.accentColor).backdropColor, '#f9f8f6');
 });
 
 test('getWordVisualSpec supports zero-background minimal, cinema bar, and spoken-moment font switching', () => {
