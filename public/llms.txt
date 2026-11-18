@@ -1,30 +1,14 @@
 # Caption Lite
 
-> Browser-first creator video captioning, audio clean-up, reference style matching, and watermark-free WebM/SRT export studio with Deepgram Nova-2, Inception Mercury 3, and Firebase Cloud Sync.
+> Caption Lite is a browser-based video caption editor for Reels, TikTok, and YouTube Shorts. Add animated captions, edit subtitle timing, and export watermark-free WebM video or separate SRT and WebVTT files.
 
-Caption Lite lets Reels, Shorts, and TikTok creators add animated word-by-word captions, trim vertical (9:16), square (1:1), or landscape (16:9) clips, clean room noise with Web Audio API processing, match colors locally from any reference video, and export without watermarks.
+Trim and crop clips for vertical, square, or landscape video. Add captions by hand, paste a script, or import an SRT file. Caption editing, reference color sampling, audio cleanup, and exporting work locally in the browser.
 
-## Core Capabilities
+An account is optional for local editing and export. Cloud project sync requires Google sign-in. When beta automatic transcription is available, the service processes audio or video. AI text refinement processes caption text.
 
-- **Video Stage & Local Trim**: Drag-and-drop MP4/WebM/MOV or `.srt` files onto the studio stage, center-crop to 9:16 / 1:1 / 16:9 without stretching, adjust trim start/end sliders, and loop clip playback.
-- **Word-by-Word Caption Styles**: Seven animated styles (`Classic`, `Highlight`, `Pop`, `Colour Cycle`, `Karaoke`, `Bounce`, `Neon`) with customizable placement (`Bottom`, `Lower third`, `Centre`), accent color, and font size (`14px`–`38px`).
-- **Deepgram Nova-2 Auto-Captions (`/api/transcribe`)**: Server-proxied transcription returning word-level timestamps. Clips over 24 MB are automatically decoded in the browser and re-encoded to a compact 16 kHz mono WAV before upload.
-- **Inception Mercury 3 AI Refinement (`/api/captions/refine`)**: Sends caption text strings only (never raw video or audio) to fix punctuation/misheard words, restyle lines short and punchy, or translate into 7 languages.
-- **On-Device Web Audio Clean-Up & Reference Matching**: 90 Hz high-pass filter, RMS noise gate, dynamics compressor, and offscreen canvas color/placement sampling run 100% client-side.
-- **Persistence & Sync**: Auto-saves studio drafts locally with Undo/Redo (`Ctrl/Cmd+Z`), and syncs timelines and custom style presets across devices via Firebase Authentication and Cloud Firestore.
+## Pages
 
-## Vercel Backend Environment Variables
-
-Server-side secrets configured in Vercel Project Settings -> Environment Variables (never exposed to browser bundles):
-
-- `DEEPGRAM_API_KEY`: Powers `/api/transcribe` (Deepgram Nova-2 audio transcription).
-- `INCEPTION_API_KEY`: Powers `/api/captions/refine` (Inception Mercury 3 text clean-up & translation).
-- `FIREBASE_SERVICE_ACCOUNT_JSON`: Verifies Google sign-in and manages AI usage limits.
-- `BLOB_READ_WRITE_TOKEN`: Enables temporary private uploads for automatic captions on larger clips.
-
-## Key Routes
-
-- `/` (`#studio`): Main video stage, caption timeline editor, style designer, reference matcher, Mercury 3 AI panel, and WebM/SRT exporter.
-- `/#projects`: Cloud Firestore saved projects and custom style presets dashboard (Google Sign-In).
-- `/#deploy`: Live Vercel server capability check and Firebase Auth allowlist guide.
-- `/#guide`: Step-by-step workflow, technical architecture limits, and creator FAQ.
+- [Caption Lite](/): Product overview and supported export formats.
+- [Video caption templates](/gallery): Preview animated caption styles on a sample clip.
+- [How to add captions to a video](/guide): Captioning workflow, export choices, and frequently asked questions.
+- [Video caption studio](/studio): Interactive editor.

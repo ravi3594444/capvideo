@@ -2,11 +2,18 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, loadEnv} from 'vite';
+import { getSiteOrigin, seoPages } from './seo-build.ts';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const verification = env.VITE_GOOGLE_SITE_VERIFICATION || 'rN8_3jIp7lwP69cLZpn6q9NU8a_LI3lUeKD5lPRAU1Q';
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const origin = getSiteOrigin(env.VITE_SITE_URL || (productionHost ? `https://${productionHost}` : undefined));
   return {
+    define: { 'import.meta.env.VITE_SITE_URL': JSON.stringify(origin ?? '') },
     plugins: [
+      seoPages(path.resolve(import.meta.dirname, 'dist'), origin, verification),
       react(),
       tailwindcss(),
       // Copies src/assets into dist/ so root-relative URLs like
@@ -19,8 +26,8 @@ export default defineConfig(() => {
           if (error) {
             return;
           }
-          const distDir = path.resolve(__dirname, 'dist');
-          const srcAssets = path.resolve(__dirname, 'src/assets');
+          const distDir = path.resolve(import.meta.dirname, 'dist');
+          const srcAssets = path.resolve(import.meta.dirname, 'src/assets');
           const distAssets = path.resolve(distDir, 'src/assets');
           if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
             fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
@@ -30,7 +37,7 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
     },
     server: {

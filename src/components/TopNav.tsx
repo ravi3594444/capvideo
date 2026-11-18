@@ -2,16 +2,8 @@ import { Button } from '@astryxdesign/core/Button';
 import { Captions, CloudUpload, LogIn } from 'lucide-react';
 import type { User } from 'firebase/auth';
 
-export type AppView = 'landing' | 'gallery' | 'studio' | 'projects' | 'deploy' | 'guide';
-
-export const VIEW_HREFS: Record<AppView, string> = {
-  landing: '/',
-  gallery: '/gallery',
-  studio: '/studio',
-  projects: '/#projects',
-  deploy: '/#deploy',
-  guide: '/#guide',
-};
+import { VIEW_HREFS, type SeoViewId as AppView } from '../utils/seo';
+export { VIEW_HREFS, type SeoViewId as AppView } from '../utils/seo';
 
 interface TopNavProps {
   activeView: AppView;

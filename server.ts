@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import app from './backend/app.js';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,15 +18,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distDir = path.resolve(__dirname, 'dist');
-    app.use(express.static(distDir));
-    app.get('*', (_req, res) => {
-      const indexFile = path.join(distDir, 'index.html');
-      if (fs.existsSync(indexFile)) {
-        res.sendFile(indexFile);
-      } else {
-        res.status(404).send('Build output not found.');
-      }
-    });
+    app.use(express.static(distDir, { extensions: ['html'] }));
   }
 
   app.listen(PORT, '0.0.0.0', () => {

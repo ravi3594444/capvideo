@@ -4,6 +4,8 @@ import {
   VIEW_SEO_METADATA,
   buildCanonicalUrl,
   getViewSeoMetadata,
+  isIndexable,
+  resolveView,
   type SeoViewId,
 } from './seo';
 
@@ -23,17 +25,20 @@ test('VIEW_SEO_METADATA enforces recommended title and meta description length b
   assert.equal(Object.keys(VIEW_SEO_METADATA).length, views.length);
 });
 
-test('buildCanonicalUrl resolves clean canonical links per view', () => {
-  assert.equal(
-    buildCanonicalUrl('https://caption-lite.vercel.app/', '/', 'studio'),
-    'https://caption-lite.vercel.app/'
-  );
-  assert.equal(
-    buildCanonicalUrl('https://caption-lite.vercel.app', '/', 'guide'),
-    'https://caption-lite.vercel.app/#guide'
-  );
-  assert.equal(
-    buildCanonicalUrl('https://caption-lite.vercel.app', '/studio', 'deploy'),
-    'https://caption-lite.vercel.app/studio#deploy'
-  );
+test('public pages use absolute canonical URLs without fragments', () => {
+  assert.equal(buildCanonicalUrl('https://caption.example/', 'landing'), 'https://caption.example/');
+  assert.equal(buildCanonicalUrl('https://caption.example', 'guide'), 'https://caption.example/guide');
+  assert.equal(buildCanonicalUrl('https://caption.example', 'gallery'), 'https://caption.example/gallery');
+  assert.equal(isIndexable('projects'), false);
+  assert.equal(isIndexable('deploy'), false);
+  assert.equal(isIndexable('studio'), false);
+});
+
+test('resolveView keeps old links working while using standalone routes', () => {
+  assert.equal(resolveView('/', '#guide'), 'guide');
+  assert.equal(resolveView('/', '#projects'), 'projects');
+  assert.equal(resolveView('/', '#styles'), 'landing');
+  assert.equal(resolveView('/guide/', ''), 'guide');
+  assert.equal(resolveView('/gallery', ''), 'gallery');
+  assert.equal(resolveView('/missing', ''), undefined);
 });

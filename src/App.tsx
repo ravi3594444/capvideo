@@ -53,7 +53,7 @@ import {
   type StyleConfig,
 } from './utils/captions';
 import { loadLocalDraft, loadRecentDrafts, saveLocalDraft, saveRecentDrafts, type StudioDraft } from './utils/draftStorage';
-import { applyDocumentSeo } from './utils/seo';
+import { applyDocumentSeo, resolveView } from './utils/seo';
 import {
   createAudioCleanGraph,
   type AudioGraphHandle,
@@ -85,13 +85,7 @@ const INSPECTOR_TABS = [
 
 function getInitialView(): AppView {
   if (typeof window === 'undefined') return 'landing';
-  const hash = window.location.hash.replace(/^#/, '');
-  if (hash === 'projects' || hash === 'deploy' || hash === 'guide' || hash === 'studio') {
-    return hash;
-  }
-  if (window.location.pathname === '/studio') return 'studio';
-  if (window.location.pathname === '/gallery') return 'gallery';
-  return 'landing';
+  return resolveView(window.location.pathname, window.location.hash) ?? 'landing';
 }
 
 function InspectorPanel({ tab, activeTab, children }: { tab: InspectorTab; activeTab: InspectorTab; children: ReactNode }) {

@@ -1,57 +1,67 @@
 export type SeoViewId = 'landing' | 'gallery' | 'studio' | 'projects' | 'deploy' | 'guide';
 
+export const VIEW_HREFS: Record<SeoViewId, string> = {
+  landing: '/',
+  gallery: '/gallery',
+  studio: '/studio',
+  projects: '/projects',
+  deploy: '/deploy',
+  guide: '/guide',
+};
+
+export const INDEXABLE_VIEWS = ['landing', 'gallery', 'guide'] as const;
+
 export interface ViewSeoMetadata {
   title: string;
   description: string;
-  hashPath: string;
 }
 
 export const VIEW_SEO_METADATA: Record<SeoViewId, ViewSeoMetadata> = {
   landing: {
-    title: 'Caption Lite — Make every word worth watching',
-    description: 'Create and style captions for Reels, Shorts, and TikToks. Try animated fonts, edit in your browser, and export your video or subtitles.',
-    hashPath: '',
+    title: 'Free Online Video Caption Editor | Caption Lite',
+    description: 'Add animated captions to Reels, Shorts, and TikToks. Edit subtitles in your browser and export watermark-free WebM, SRT, or WebVTT.',
   },
   gallery: {
-    title: 'Caption Template Gallery — Caption Lite',
-    description: 'Browse caption templates for short videos, start a blank editing project, or pick up a draft saved on your device.',
-    hashPath: '',
+    title: 'Video Caption Templates and Styles | Caption Lite',
+    description: 'Explore animated caption styles for Reels, TikTok, and YouTube Shorts. Preview styles on a sample clip and start a video caption project.',
   },
   studio: {
-    title: 'Caption Lite — Free Video Captioning & Style Studio',
-    description:
-      'Caption, style, clean audio, and export watermark-free Reels, Shorts, and TikToks with Deepgram Nova-2, Inception Mercury 3, and Firebase sync.',
-    hashPath: '',
+    title: 'Video Caption Editing Studio | Caption Lite',
+    description: 'Edit subtitle timing, style animated words, crop and trim clips, and download a captioned WebM video or a separate subtitle file.',
   },
   projects: {
-    title: 'Saved Projects & Style Presets — Caption Lite',
-    description:
-      'Manage your cloud-synced video caption timelines, aspect ratios, trim windows, and custom creator presets stored securely in Cloud Firestore.',
-    hashPath: '#projects',
+    title: 'Saved Caption Projects and Styles | Caption Lite',
+    description: 'Sign in to open your saved video caption projects and custom styles, including subtitle timing, aspect ratios, and trim settings.',
   },
   deploy: {
-    title: 'Vercel API Keys & Firebase Setup — Caption Lite',
-    description:
-      'Configure DEEPGRAM_API_KEY and INCEPTION_API_KEY on Vercel alongside Firebase Authorized Domains for production server-proxied transcription.',
-    hashPath: '#deploy',
+    title: 'Vercel and Firebase Deployment Guide | Caption Lite',
+    description: 'Check the server capabilities and configure Firebase, transcription, caption refinement, and private uploads for a Caption Lite deployment.',
   },
   guide: {
-    title: 'How Caption Lite Works & FAQ — Caption Lite',
-    description:
-      'Learn how on-device Web Audio clean-up, reference color sampling, 16 kHz mono WAV compression, Deepgram Nova-2, and Mercury 3 work together.',
-    hashPath: '#guide',
+    title: 'How to Add Captions to a Video | Caption Lite',
+    description: 'Learn how to add animated captions to a video, import and edit an SRT file, choose a caption style, and export subtitles or a watermark-free WebM.',
   },
 };
 
 export function getViewSeoMetadata(view: SeoViewId): ViewSeoMetadata {
-  return VIEW_SEO_METADATA[view] ?? VIEW_SEO_METADATA.studio;
+  return VIEW_SEO_METADATA[view];
 }
 
-export function buildCanonicalUrl(origin: string, pathname: string, view: SeoViewId): string {
-  const cleanOrigin = origin.replace(/\/+$/, '');
-  const cleanPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
-  const meta = getViewSeoMetadata(view);
-  return `${cleanOrigin}${cleanPath}${meta.hashPath}`;
+export function isIndexable(view: SeoViewId): boolean {
+  return INDEXABLE_VIEWS.some((publicView) => publicView === view);
+}
+
+export function buildCanonicalUrl(origin: string, view: SeoViewId): string {
+  return new URL(VIEW_HREFS[view], origin).href;
+}
+
+export function resolveView(pathname: string, hash: string): SeoViewId | undefined {
+  const path = pathname.replace(/\/$/, '') || '/';
+  const legacyHash = hash.slice(1);
+  if (path === '/' && (legacyHash === 'projects' || legacyHash === 'deploy' || legacyHash === 'guide' || legacyHash === 'studio')) {
+    return legacyHash;
+  }
+  return (Object.keys(VIEW_HREFS) as SeoViewId[]).find((view) => VIEW_HREFS[view] === path);
 }
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string): void {
@@ -76,18 +86,21 @@ export function applyDocumentSeo(view: SeoViewId): void {
   upsertMeta('name', 'twitter:title', meta.title);
   upsertMeta('name', 'twitter:description', meta.description);
 
-  const canonicalUrl = buildCanonicalUrl(
-    window.location.origin,
-    window.location.pathname,
-    view
-  );
-  upsertMeta('property', 'og:url', canonicalUrl);
+  upsertMeta('name', 'robots', isIndexable(view) ? 'index, follow' : 'noindex, follow');
 
-  let link = document.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-  if (!link) {
-    link = document.createElement('link');
-    link.setAttribute('rel', 'canonical');
-    document.head.appendChild(link);
+  const siteOrigin = import.meta.env.VITE_SITE_URL;
+  const canonicalUrl = siteOrigin ? buildCanonicalUrl(siteOrigin, view) : undefined;
+  const existingLink = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  const existingOgUrl = document.head.querySelector('meta[property="og:url"]');
+  if (!canonicalUrl || !isIndexable(view)) {
+    existingLink?.remove();
+    existingOgUrl?.remove();
+    return;
   }
-  link.setAttribute('href', canonicalUrl);
+
+  upsertMeta('property', 'og:url', canonicalUrl);
+  const link = existingLink ?? document.createElement('link');
+  link.rel = 'canonical';
+  link.href = canonicalUrl;
+  if (!existingLink) document.head.appendChild(link);
 }

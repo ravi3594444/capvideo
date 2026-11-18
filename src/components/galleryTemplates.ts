@@ -5,7 +5,7 @@ import {
   type CaptionCue,
   type CaptionStyleCategory,
   type StyleConfig,
-} from '../utils/captions';
+} from '../utils/captions.ts';
 
 export interface GalleryTemplate {
   id: string;

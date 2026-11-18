@@ -1,3 +1,4 @@
+import { PRODUCT_SUMMARY } from '../utils/publicContent';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { ArrowDown, ArrowRight, Camera, Captions, Download, SlidersHorizontal } from 'lucide-react';
@@ -190,7 +191,7 @@ export function LandingPage({ onOpenGallery }: { onOpenGallery: () => void }) {
           onPointerLeave={() => pointer.set(0)}
         >
           <motion.div className="landing-hero" style={reduced || !size.height ? undefined : { y: titleY }}>
-            <h1 id="landing-title">Make every word<br />worth watching.</h1>
+            <h1 id="landing-title">Add captions<br />to your videos.</h1>
             <p>Style captions for Reels, Shorts, and TikToks.</p>
             <div className="landing-actions">
               <Button variant="primary" size="lg" label="Open Gallery" icon={<ArrowRight size={17} />} onClick={onOpenGallery} className="landing-primary" />
@@ -212,7 +213,8 @@ export function LandingPage({ onOpenGallery }: { onOpenGallery: () => void }) {
       </section>
 
       <section className="landing-features" aria-labelledby="landing-features-title">
-        <h2 id="landing-features-title">From clip to final cut.</h2>
+        <h2 id="landing-features-title">Free online video caption editor</h2>
+        <p>{PRODUCT_SUMMARY} <a href="/guide">Learn how to add captions</a>.</p>
         <div className="landing-feature-grid">
           {features.map(({ Icon, title, text }) => (
             <article key={title}>
