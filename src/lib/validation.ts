@@ -41,6 +41,8 @@ export const ALLOWED_STYLES: readonly CaptionStyle[] = [
   'st-karaoke',
   'st-bounce',
   'st-neon',
+  'st-behind-subject',
+  'st-hero-moment',
 ];
 export const ALLOWED_FONTS: readonly CaptionFont[] = [
   'manrope',

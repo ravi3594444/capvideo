@@ -25,7 +25,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TopNav, VIEW_HREFS, type AppView } from './components/TopNav';
-import { LandingPage } from './components/LandingPage';
 import { StudioGallery } from './components/StudioGallery';
 import { VideoStage } from './components/VideoStage';
 import { StudioTimelineBar } from './components/StudioTimelineBar';
@@ -121,6 +120,10 @@ function StudioApp() {
 
   const navigate = (view: AppView) => {
     const href = VIEW_HREFS[view];
+    if (view === 'landing') {
+      window.location.assign(href);
+      return;
+    }
     if (window.location.pathname + window.location.hash !== href) {
       window.history.pushState(null, '', href);
     }
@@ -752,7 +755,6 @@ function StudioApp() {
         )}
 
         <main>
-          {activeView === 'landing' && <LandingPage onOpenGallery={() => navigate('gallery')} />}
           {activeView === 'gallery' && (
             <StudioGallery
               currentDraft={currentDraft}

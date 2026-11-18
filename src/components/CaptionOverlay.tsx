@@ -2,10 +2,12 @@ import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import {
   clampWordSpacing,
   getCaptionWordClock,
+  getCaptionBlockMotion,
   getCaptionSpotlightWords,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
-  getCaptionWordRows,
+  getCaptionDisplayRows,
+  getDepthRowAppearance,
   getWordVisualSpec,
   isNegativeEmphasisWord,
   normalizeToken,
@@ -32,19 +34,22 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
   useLayoutEffect(() => {
     const content = contentRef.current;
     const frame = content?.parentElement?.parentElement;
-    if (!fitHeight || !content || !frame) return;
+    const depth = config.style === 'st-behind-subject';
+    if ((!fitHeight && !depth) || !content || !frame) return;
     const safeHeight = config.position === 'pos-third' ? 0.72 : 0.92;
     const fit = () => {
       const available = Math.max(0, frame.clientHeight * safeHeight - 8);
-      const ratio = Math.min(1, available / Math.max(1, content.offsetHeight));
+      const width = depth ? Math.max(1, ...Array.from(content.querySelectorAll<HTMLElement>('.cap-row'), row => row.scrollWidth)) : 1;
+      const ratio = Math.min(1, available / Math.max(1, content.offsetHeight), frame.clientWidth * 0.88 / width);
       content.style.setProperty('--caption-fit', String(ratio));
     };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(content);
     observer.observe(frame);
+    if (depth) content.querySelectorAll('.cap-row').forEach(row => observer.observe(row));
     return () => observer.disconnect();
-  }, [config.position, fitHeight, hasWords]);
+  }, [config.position, config.style, config.wordsPerPage, cue.text, fitHeight, hasWords]);
 
   if (!hasWords) return null;
 
@@ -56,7 +61,8 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
   const keywords = getCaptionSpotlightWords(cue, spotlightAuto);
   const headlineIndex = getCaptionHeadlineIndex(cue, words, config.style, effect, spotlightAuto);
   const scaleInLayout = headlineIndex >= 0 || revealMode === 'pop';
-  const rows = getCaptionWordRows(words, headlineIndex, Number(config.wordsPerPage) || 4)
+  const block = getCaptionBlockMotion(config.style, cue, currentTime, spotlightAuto);
+  const rows = getCaptionDisplayRows(config, words, headlineIndex)
     .filter(row => revealMode === 'pop'
       ? row.some(({ index }) => index === activeWordIndex)
       : revealMode !== 'build' || row[0].index <= activeWordIndex);
@@ -69,9 +75,11 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
       data-testid={onEdit ? 'caption-overlay' : undefined}
       className={`cap-overlay ${config.position} ${config.style}`}
       style={{
-        fontSize: `min(calc(${config.fontSize} * var(--caption-font-unit, 1px)), var(--caption-max-font, 1000px))`,
+        fontSize: `min(calc(${config.fontSize * block.fontScale} * var(--caption-font-unit, 1px)), calc(var(--caption-max-font, 1000px) * ${block.fontScale}))`,
+        '--caption-block-scale': block.blockScale,
+        '--caption-shift': `${block.shift * 100}%`,
         mixBlendMode: config.blendMode === 'difference' ? 'difference' : undefined,
-      }}
+      } as CSSProperties}
     >
       <span ref={contentRef} className="cap-content">
         {previousCue && config.pageLayout === 'stack' && revealMode !== 'pop' && (
@@ -89,8 +97,9 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
             backgroundColor: container.backdropColor ?? undefined,
           } as CSSProperties}
         >
-          {rows.map(row => (
-            <span key={row[0].index} className="cap-row" data-headline={row[0].index === headlineIndex}>
+          {rows.map((row, rowIndex) => (
+            <span key={row[0].index} className="cap-row" data-headline={row[0].index === headlineIndex}
+              style={{ fontSize: `${getDepthRowAppearance(config.style, rowIndex, config.accentColor).scale}em` }}>
               {row.map(({ word, index: wordIndex }) => {
                 const spec = getWordVisualSpec({
                   style: config.style,
@@ -128,7 +137,7 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
                   fontWeight: spec.fontWeight,
                   fontSize: scaleInLayout ? `${spec.scale}em` : undefined,
                   fontStyle: spec.fontStyle,
-                  color: spec.color,
+                  color: getDepthRowAppearance(config.style, rowIndex, config.accentColor).color ?? spec.color,
                   opacity: spec.opacity,
                   backgroundColor: spec.backgroundColor ?? undefined,
                   marginInline: !scaleInLayout && spec.scale > 1.02 ? `${((spec.scale - 1) * 0.58).toFixed(2)}em` : undefined,

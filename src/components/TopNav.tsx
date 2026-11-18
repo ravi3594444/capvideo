@@ -27,10 +27,7 @@ export function TopNav({ activeView, onNavigate, user, authLoading, savingProjec
   return (
     <header className={`workspace-nav glassy-chrome${activeView === 'studio' ? ' workspace-nav-editor' : ''}`}>
       <div className="workspace-nav-inner">
-        <a href="/" className="workspace-brand" onClick={(event) => {
-          event.preventDefault();
-          onNavigate('landing');
-        }}>
+        <a href="/" className="workspace-brand">
           <span className="workspace-brand-mark"><Captions size={19} aria-hidden="true" /></span>
           <span>Caption Lite</span>
         </a>

@@ -21,6 +21,7 @@
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@fontsource-variable/geist": "^5.3.0",
     "@google/genai": "^2.4.0",
+    "@mediapipe/selfie_segmentation": "0.1.1675465747",
     "@stylexjs/stylex": "^0.19.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/multer": "^2.3.0",

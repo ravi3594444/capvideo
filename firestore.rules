@@ -33,7 +33,7 @@ service cloud.firestore {
       return v is string && v in [
         'st-minimal', 'st-editorial', 'st-cinema', 'st-classic',
         'st-font-switch', 'st-font-snap', 'st-kinetic-mix', 'st-typewriter',
-        'st-hormozi', 'st-highlight', 'st-pop', 'st-cycle', 'st-karaoke', 'st-bounce', 'st-neon'
+        'st-hormozi', 'st-highlight', 'st-pop', 'st-cycle', 'st-karaoke', 'st-bounce', 'st-neon', 'st-behind-subject', 'st-hero-moment'
       ];
     }
 

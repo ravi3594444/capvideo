@@ -4,6 +4,7 @@ import type { Plugin } from 'vite';
 import { buildCanonicalUrl, getViewSeoMetadata, INDEXABLE_VIEWS, isIndexable, resolveView, VIEW_HREFS, type SeoViewId } from './src/utils/seo.ts';
 import { CAPTION_FAQ, CAPTION_STEPS, PRODUCT_SUMMARY } from './src/utils/publicContent.ts';
 
+import { renderLanding } from './landing-build.ts';
 import { galleryTemplates } from './src/components/galleryTemplates.ts';
 
 const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({
@@ -24,7 +25,6 @@ export function seoPages(outDir: string, origin?: string, verification?: string)
     `<li><a href="${VIEW_HREFS[view]}">${escape(getViewSeoMetadata(view).title.split(' | ')[0])}</a></li>`
   ).join('');
   const fallback = {
-    landing: `<p>${escape(PRODUCT_SUMMARY)}</p>`,
     gallery: `<p>Preview animated captions on a sample clip and choose a style for your video. Open the studio to adjust font, placement, and timing.</p>
       <h2>Caption style examples</h2><dl>${galleryTemplates.slice(0, 8).map(({ title, description }) => `<dt>${escape(title)}</dt><dd>${escape(description)}</dd>`).join('')}</dl>`,
     guide: `<p>${escape(PRODUCT_SUMMARY)}</p><h2>Step-by-step workflow</h2><ol>${CAPTION_STEPS.map((step) => `<li>${escape(step)}</li>`).join('')}</ol>
@@ -48,7 +48,7 @@ export function seoPages(outDir: string, origin?: string, verification?: string)
       offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' },
       featureList: ['Animated video captions', 'SRT import', 'Watermark-free WebM export', 'SRT and WebVTT export'],
     };
-    const head = [
+    let head = [
       `<title>${escape(title)}</title>`,
       `<meta name="description" content="${escape(description)}">`,
       `<meta name="robots" content="${indexed ? 'index, follow' : 'noindex, follow'}">`,
@@ -64,11 +64,42 @@ export function seoPages(outDir: string, origin?: string, verification?: string)
       verification && view === 'landing' ? `<meta name="google-site-verification" content="${escape(verification)}">` : '',
       view === 'landing' ? `<script type="application/ld+json">${JSON.stringify(app).replace(/</g, '\\u003c')}</script>` : '',
     ].filter(Boolean).join('\n    ');
+    if (view === 'landing') return renderLanding(html, head, escape);
+
+    // Keep the crawlable HTML available when scripts are disabled. A running
+    // browser shows the app's loading surface until React replaces both nodes.
+    head += `
+      <style>
+        .app-loading { display: none; }
+        [data-app-booting] #root > .indexable-summary { display: none; }
+        [data-app-booting] #root > .app-loading {
+          display: block;
+          min-height: 100svh;
+          background: #000;
+        }
+        .app-loading::before {
+          content: '';
+          display: block;
+          height: 64px;
+          background: #121212;
+          border-bottom: 1px solid #282828;
+        }
+        @media (max-width: 600px) { .app-loading::before { height: 82px; } }
+      </style>
+      <script>
+        document.documentElement.dataset.appBooting = '';
+        window.addEventListener('error', (event) => {
+          if (event.target instanceof HTMLScriptElement && event.target.type === 'module') {
+            delete document.documentElement.dataset.appBooting;
+          }
+        }, true);
+      </script>`;
+
     const content = indexed
       ? `<main class="indexable-summary"><h1>${escape(title.split(' | ')[0])}</h1>${fallback[view as keyof typeof fallback]}
         <p><a href="/studio">Open the video caption studio</a></p><nav aria-label="Caption Lite pages"><ul>${publicLinks}</ul></nav></main>`
       : '';
-    return html.replace('<!-- PAGE_HEAD -->', () => head).replace('<!-- PAGE_CONTENT -->', () => content);
+    return html.replace('<!-- PAGE_HEAD -->', () => head).replace('<!-- PAGE_CONTENT -->', () => `<div class="app-loading" role="status" aria-label="Loading Caption Lite"></div>${content}`);
   }
 
   return {

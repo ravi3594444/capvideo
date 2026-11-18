@@ -14,7 +14,9 @@ export type CaptionStyle =
   | 'st-cycle'
   | 'st-karaoke'
   | 'st-bounce'
-  | 'st-neon';
+  | 'st-neon'
+  | 'st-behind-subject'
+  | 'st-hero-moment';
 
 export type CaptionFont = 'manrope' | 'system' | 'editorial' | 'impact' | 'mono';
 export type CaptionPosition = 'pos-bottom' | 'pos-third' | 'pos-centre';
@@ -165,6 +167,26 @@ export interface CaptionStyleMeta {
 
 export const CAPTION_STYLE_CATALOG: CaptionStyleMeta[] = [
   {
+    id: 'st-behind-subject',
+    category: 'creator',
+    label: 'Behind Subject',
+    desc: 'Oversized text drifts behind the person in the video',
+    noBackground: true,
+    defaultReveal: 'flash',
+    defaultEffect: 'none',
+    defaultFont: 'impact',
+  },
+  {
+    id: 'st-hero-moment',
+    category: 'creator',
+    label: 'Hero Moment',
+    desc: 'The whole phrase grows together on an emphasized word',
+    noBackground: true,
+    defaultReveal: 'flash',
+    defaultEffect: 'none',
+    defaultFont: 'manrope',
+  },
+  {
     id: 'st-minimal',
     category: 'simple',
     label: 'Clean Normal',
@@ -306,6 +328,18 @@ export interface CuratedPresetPack {
 }
 
 export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
+  {
+    id: 'pack-behind-subject',
+    label: 'Behind Subject',
+    subtitle: 'Oversized captions drift behind the person',
+    apply: { style: 'st-behind-subject', fontFamily: 'impact', position: 'pos-centre', fontSize: 34, revealMode: 'flash', effect: 'none', pageLayout: 'replace', blendMode: 'normal', accentColor: '#e7fa69' },
+  },
+  {
+    id: 'pack-hero-moment',
+    label: 'Hero Moment',
+    subtitle: 'Punch in on the whole phrase at a key word',
+    apply: { style: 'st-hero-moment', fontFamily: 'manrope', position: 'pos-centre', fontSize: 28, revealMode: 'flash', effect: 'none', pageLayout: 'replace', blendMode: 'normal', accentColor: '#fff279' },
+  },
   {
     id: 'pack-mrbeast',
     label: 'MrBeast Punch',
@@ -499,6 +533,29 @@ export const ENTRANCE_EFFECT_OPTIONS: { id: EntranceEffect; label: string }[] = 
   { id: 'neonPulse', label: 'Neon pulse' },
 ];
 
+export function getCaptionBlockMotion(
+  style: CaptionStyle, cue: CaptionCue, time: number, spotlightAuto = true,
+) {
+  if (style !== 'st-behind-subject' && style !== 'st-hero-moment') {
+    return { fontScale: 1, blockScale: 1, shift: 0 };
+  }
+
+  const cueProgress = Math.max(0, Math.min(1, (time - cue.start) / Math.max(0.1, cue.end - cue.start)));
+  if (style === 'st-behind-subject') {
+    return { fontScale: 1.95, blockScale: 1, shift: 0.09 * (1 - 2 * cueProgress) };
+  }
+
+  const words = cue.text.trim().split(/\s+/);
+  const keys = getCaptionSpotlightWords(cue, spotlightAuto);
+  const beat = words.findIndex(word => keys.includes(normalizeToken(word)));
+  if (beat < 0) return { fontScale: 1.2, blockScale: 1, shift: 0 };
+
+  const clock = getCaptionWordClock(cue, time, words);
+  const progress = Math.min(1, Math.max(0, clock.elapsed) / Math.max(0.12, Math.min(0.36, clock.duration)));
+  const punch = clock.index === beat ? Math.sin(Math.PI * progress) : 0;
+  return { fontScale: 1.2, blockScale: 1 + 0.48 * punch, shift: 0 };
+}
+
 export function resolveEffectiveReveal(config: StyleConfig): RevealMode {
   if (config.revealMode) return config.revealMode;
   return CAPTION_STYLE_CATALOG.find((s) => s.id === config.style)?.defaultReveal ?? 'karaoke';
@@ -552,6 +609,21 @@ export function getCaptionWordRows(words: string[], headlineIndex: number, words
     for (let i = 0; i < group.length; i += wordsPerRow) rows.push(group.slice(i, i + wordsPerRow));
   }
   return rows;
+}
+
+export function getCaptionDisplayRows(config: StyleConfig, words: string[], headlineIndex: number) {
+  const explicitSize = Number(config.wordsPerPage);
+  if (config.style === 'st-behind-subject' && !explicitSize && words.length <= 6) {
+    const indexed = words.map((word, index) => ({ word, index }));
+    const split = Math.floor(words.length / 2);
+    return split > 0 ? [indexed.slice(0, split), indexed.slice(split)] : [indexed];
+  }
+  return getCaptionWordRows(words, headlineIndex, explicitSize || (config.style === 'st-behind-subject' ? 3 : 4));
+}
+
+export function getDepthRowAppearance(style: CaptionStyle, row: number, accentColor: string) {
+  if (style !== 'st-behind-subject') return { scale: 1, color: undefined };
+  return row % 2 === 1 ? { scale: 0.78, color: accentColor } : { scale: 1, color: '#ffffff' };
 }
 
 // =====================================================================
@@ -906,6 +978,22 @@ export function getWordVisualSpec(opts: {
   let spec: WordVisualSpec;
 
   switch (style) {
+    case 'st-behind-subject':
+    case 'st-hero-moment':
+      spec = {
+        displayText: style === 'st-behind-subject' ? word.toUpperCase() : word,
+        fontCss: baseFont,
+        fontWeight: 800,
+        fontStyle: 'normal',
+        color: style === 'st-hero-moment' && isSpotlightKey ? accentColor : '#ffffff',
+        backgroundColor: null,
+        opacity: 1,
+        scale: 1,
+        translateYEm: 0,
+        rotateDeg: 0,
+        shadowMode: 'soft',
+      };
+      break;
     case 'st-minimal':
       spec = {
         displayText: word,

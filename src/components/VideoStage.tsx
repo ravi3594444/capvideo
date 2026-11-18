@@ -28,6 +28,7 @@ import {
   type StyleConfig,
 } from '../utils/captions';
 import { CaptionOverlay } from './CaptionOverlay';
+import { SubjectForeground } from './SubjectForeground';
 import type { NoiseCleanStrength } from '../utils/audioEngine';
 
 function VideoCaptionOverlay({ videoRef, videoUrl, captions, styleConfig, currentTime, onSelectCueForEdit }: Pick<
@@ -398,6 +399,9 @@ export function VideoStage({
                 styleConfig={styleConfig}
                 onSelectCueForEdit={onSelectCueForEdit}
               />
+            )}
+            {videoUrl && styleConfig.style === 'st-behind-subject' && (
+              <SubjectForeground videoRef={videoRef} source={videoUrl} />
             )}
           </div>
 

@@ -17,6 +17,9 @@ import {
   formatSrtTime,
   getActiveWordIndex,
   getCaptionWordClock,
+  getCaptionBlockMotion,
+  getCaptionDisplayRows,
+  getDepthRowAppearance,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
   getCaptionWordRows,
@@ -448,3 +451,19 @@ test('clampWordSpacing bounds values and parseStudioDraft persists wordSpacing c
 
 
 
+
+
+test('depth captions drift as a large, two-tone stack and hero motion follows a marked word', () => {
+  const cue = { id: 'test', text: 'Captions behind subjects', keyWords: ['behind'], start: 0, end: 3 };
+  const config = { ...DEFAULT_STYLE_CONFIG, style: 'st-behind-subject' as const };
+  const rows = getCaptionDisplayRows(config, cue.text.split(' '), -1);
+  assert.deepEqual(rows.map(row => row.map(({ word }) => word)), [['Captions'], ['behind', 'subjects']]);
+  assert.equal(getDepthRowAppearance(config.style, 1, '#e7fa69').color, '#e7fa69');
+  const start = getCaptionBlockMotion(config.style, cue, 0);
+  const end = getCaptionBlockMotion(config.style, cue, 3);
+  assert.ok(start.fontScale > 1.5);
+  assert.ok(start.shift > 0 && end.shift < 0);
+  assert.equal(getCaptionBlockMotion('st-hero-moment', cue, 0.2).blockScale, 1);
+  assert.ok(getCaptionBlockMotion('st-hero-moment', cue, 1.18).blockScale > 1.4);
+  assert.equal(getCaptionBlockMotion('st-hero-moment', cue, 2.18).blockScale, 1);
+});

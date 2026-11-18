@@ -205,6 +205,9 @@ function renderStyleSpecimen(styleId: string, accent: string, baseFontCss: strin
           </span>
         </span>
       );
+    case 'st-behind-subject':
+    case 'st-hero-moment':
+      return <span className="font-extrabold tracking-tight" style={{ color: accent }}>{styleId === 'st-behind-subject' ? 'BEHIND YOU' : 'Hero moment'}</span>;
     case 'st-neon':
     default:
       return (

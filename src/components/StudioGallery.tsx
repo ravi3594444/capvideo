@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { findActiveCaption, findPreviousCaption, type StyleConfig } from '../utils/captions';
 import type { StudioDraft } from '../utils/draftStorage';
 import { CaptionOverlay } from './CaptionOverlay';
+import { SubjectForeground } from './SubjectForeground';
 import { galleryPreviewCues, galleryTemplates, type GalleryTemplate } from './galleryTemplates';
 
 const categories = [
@@ -152,6 +153,9 @@ function GalleryVideoPreview({ template, reducedMotion, onUse }: {
         <div className="gallery-video-caption" aria-hidden="true">
           <CaptionOverlay cue={cue} previousCue={previousCue} currentTime={time} config={template.style} />
         </div>
+        {template.style.style === 'st-behind-subject' && (
+          <SubjectForeground videoRef={videoRef} source={previewVideoUrl} />
+        )}
         <button
           type="button"
           className="gallery-preview-play"

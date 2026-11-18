@@ -3,10 +3,12 @@ import {
   findActiveCaption,
   findPreviousCaption,
   getCaptionWordClock,
+  getCaptionBlockMotion,
   getCaptionSpotlightWords,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
-  getCaptionWordRows,
+  getCaptionDisplayRows,
+  getDepthRowAppearance,
   getWordVisualSpec,
   isNegativeEmphasisWord,
   normalizeToken,
@@ -68,6 +70,39 @@ export async function exportBurnedInWebM(
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not initialize export canvas.');
+
+  let foreground: { mask: ReturnType<typeof import('./subjectMask').createSubjectMask>; ctx: CanvasRenderingContext2D } | undefined;
+  if (styleConfig.style === 'st-behind-subject') {
+    try {
+      const { createSubjectMask, loadSubjectMask } = await import('./subjectMask');
+      await loadSubjectMask();
+      const layer = document.createElement('canvas');
+      layer.width = width;
+      layer.height = height;
+      const layerCtx = layer.getContext('2d');
+      if (!layerCtx) throw new Error('Could not initialize subject layer.');
+      const mask = createSubjectMask();
+      video.pause();
+      video.currentTime = trimStart;
+      if (video.seeking) {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            video.removeEventListener('seeked', onSeeked);
+            reject(new Error('Could not seek to the export start.'));
+          }, 5000);
+          function onSeeked() {
+            window.clearTimeout(timeout);
+            resolve();
+          }
+          video.addEventListener('seeked', onSeeked, { once: true });
+        });
+      }
+      await mask.update(video);
+      foreground = { mask, ctx: layerCtx };
+    } catch {
+      throw new Error('Behind Subject could not load its person mask. Try another browser or choose a different caption style.');
+    }
+  }
 
   const mime =
     ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((m) =>
@@ -178,21 +213,21 @@ export async function exportBurnedInWebM(
     if (e.data.size) chunks.push(e.data);
   };
 
-  const fontPx = Math.round(styleConfig.fontSize * (canvas.width / 340));
   const effectiveReveal = resolveEffectiveReveal(styleConfig);
   const effectiveEffect = resolveEffectiveEffect(styleConfig);
   const spotlightAuto = styleConfig.spotlightAuto ?? true;
   const pageLayout = styleConfig.pageLayout ?? 'replace';
   const useDifference = styleConfig.blendMode === 'difference';
   const containerSpec = getCaptionContainerSpec(styleConfig.style, effectiveEffect, styleConfig.accentColor);
-  const wordGapPx = fontPx * clampWordSpacing(styleConfig.wordSpacing);
-  const lineGap = fontPx * 0.12;
-  const backdropPadX = containerSpec.hasFullLineBackdrop ? fontPx * 0.45 : 0;
-  const backdropPadY = containerSpec.hasFullLineBackdrop ? fontPx * 0.23 : 0;
   const safeWidth = canvas.width * 0.88;
   const bottomInset = styleConfig.position === 'pos-third' ? 0.26 : 0.06;
   const safeHeight = canvas.height * (styleConfig.position === 'pos-third' ? 0.71 : 0.92);
 
+  let maskPending = false;
+  let lastMaskTime = -Infinity;
+  let animation = 0;
+  let timer: number | undefined;
+  let failExport: (error: Error) => void;
   const drawFrame = () => {
     const vw = video.videoWidth || 16;
     const vh = video.videoHeight || 9;
@@ -205,6 +240,12 @@ export async function exportBurnedInWebM(
 
     const cue = findActiveCaption(captions, video.currentTime);
     if (cue) {
+      const block = getCaptionBlockMotion(styleConfig.style, cue, video.currentTime, spotlightAuto);
+      const fontPx = Math.round(styleConfig.fontSize * block.fontScale * (canvas.width / 340));
+      const backdropPadX = containerSpec.hasFullLineBackdrop ? fontPx * 0.45 : 0;
+      const backdropPadY = containerSpec.hasFullLineBackdrop ? fontPx * 0.23 : 0;
+      const wordGapPx = fontPx * clampWordSpacing(styleConfig.wordSpacing);
+      const lineGap = fontPx * 0.12;
       const words = cue.text.trim().split(/\s+/).filter(Boolean);
       const { index: on, elapsed: wordElapsedSec, duration: wordDurationSec } = getCaptionWordClock(cue, video.currentTime, words);
       const keywords = getCaptionSpotlightWords(cue, spotlightAuto);
@@ -217,13 +258,12 @@ export async function exportBurnedInWebM(
           ? findPreviousCaption(captions, cue)
           : null;
 
-      const wrapSize = Number(styleConfig.wordsPerPage) || 4;
       const headlineIndex = getCaptionHeadlineIndex(cue, words, styleConfig.style, effectiveEffect, spotlightAuto);
       const lines = effectiveReveal === 'pop'
         ? words[on] ? [[{ word: words[on], index: on }]] : []
-        : getCaptionWordRows(words, headlineIndex, wrapSize);
+        : getCaptionDisplayRows(styleConfig, words, headlineIndex);
 
-      const lineSpecs = lines.map((line) =>
+      const lineSpecs = lines.map((line, rowIndex) =>
         line
           .map(({ word, index: gi }) => {
             const spec = getWordVisualSpec({
@@ -245,7 +285,9 @@ export async function exportBurnedInWebM(
               currentTimeSec: video.currentTime,
             });
             if (spec.isHidden) return null;
-            const px = Math.round(fontPx * spec.scale);
+            const depth = getDepthRowAppearance(styleConfig.style, rowIndex, styleConfig.accentColor);
+            spec.color = depth.color ?? spec.color;
+            const px = Math.round(fontPx * spec.scale * depth.scale);
             ctx.font = `${spec.fontStyle} ${spec.fontWeight} ${px}px ${spec.fontCss}`;
             const textWidth = ctx.measureText(spec.displayText).width;
             const padding = px * 0.12;
@@ -259,7 +301,7 @@ export async function exportBurnedInWebM(
         const wrapped: { words: typeof words; width: number; height: number }[] = [];
         for (const word of words) {
           let row = wrapped[wrapped.length - 1];
-          if (!row || row.width + wordGapPx + word.width > availableWidth) {
+          if (!row || (!foreground && row.width + wordGapPx + word.width > availableWidth)) {
             row = { words: [], width: 0, height: 0 };
             wrapped.push(row);
           }
@@ -274,13 +316,14 @@ export async function exportBurnedInWebM(
       const rowsHeight = rows.reduce((height, row) => height + row.height, 0) + lineGap * Math.max(0, rows.length - 1);
       const previousHeight = prevCue ? fontPx * 1.12 : 0;
       const blockHeight = previousHeight + rowsHeight + backdropPadY * 2;
-      const fit = rows.length ? Math.min(1, safeWidth / Math.max(1, boxWidth), safeHeight / Math.max(1, blockHeight)) : 1;
+      const baseFit = rows.length ? Math.min(1, safeWidth / Math.max(1, boxWidth), safeHeight / Math.max(1, blockHeight)) : 1;
+      const fit = baseFit * block.blockScale;
       const top = styleConfig.position === 'pos-centre'
         ? (canvas.height - blockHeight * fit) / 2
         : canvas.height * (1 - bottomInset) - blockHeight * fit;
 
       ctx.save();
-      ctx.translate(canvas.width / 2, top);
+      ctx.translate(canvas.width * (0.5 + block.shift), top);
       ctx.scale(fit, fit);
 
       if (prevCue) {
@@ -385,11 +428,25 @@ export async function exportBurnedInWebM(
       ctx.restore();
     }
 
+    if (foreground && cue) {
+      const { mask, ctx: foregroundCtx } = foreground;
+      const frameTime = video.currentTime;
+      if (!maskPending && Math.abs(frameTime - lastMaskTime) >= 0.08) {
+        lastMaskTime = frameTime;
+        maskPending = true;
+        void mask.update(video).catch(() => {
+          failExport(new Error('Person masking failed during export. Try another browser or caption style.'));
+        }).finally(() => { maskPending = false; });
+      }
+      mask.drawForeground(foregroundCtx, video, width, height);
+      ctx.drawImage(foregroundCtx.canvas, 0, 0);
+    }
+
     const len = trimEnd - trimStart;
     onProgress(len > 0 ? Math.min(100, ((video.currentTime - trimStart) / len) * 100) : 0);
 
     if (!video.paused && !video.ended && video.currentTime < trimEnd) {
-      requestAnimationFrame(drawFrame);
+      animation = requestAnimationFrame(drawFrame);
     }
   };
 
@@ -400,6 +457,10 @@ export async function exportBurnedInWebM(
 
   return new Promise((resolve, reject) => {
     const cleanup = () => {
+      cancelAnimationFrame(animation);
+      window.clearInterval(timer);
+      foreground?.mask.clear();
+      streams[0].getVideoTracks().forEach(track => track.stop());
       video.muted = prevMuted;
       try {
         voiceSource?.stop();
@@ -420,12 +481,16 @@ export async function exportBurnedInWebM(
         usedAiVoice,
       });
     };
-    recorder.onerror = () => {
+    failExport = (error) => {
+      recorder.onstop = null;
+      if (recorder.state !== 'inactive') recorder.stop();
+      video.pause();
       cleanup();
-      reject(new Error('Recording failed in browser MediaRecorder.'));
+      reject(error);
     };
+    recorder.onerror = () => failExport(new Error('Recording failed in browser MediaRecorder.'));
 
-    video.currentTime = trimStart;
+    if (!foreground) video.currentTime = trimStart;
     video
       .play()
       .then(async () => {
@@ -434,8 +499,8 @@ export async function exportBurnedInWebM(
           voiceSource.start(0, 0);
         }
         recorder.start(250);
-        requestAnimationFrame(drawFrame);
-        const timer = window.setInterval(() => {
+        animation = requestAnimationFrame(drawFrame);
+        timer = window.setInterval(() => {
           if (video.currentTime >= trimEnd - 0.1 || video.ended) {
             window.clearInterval(timer);
             if (recorder.state !== 'inactive') recorder.stop();

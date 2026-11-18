@@ -16,7 +16,7 @@ export interface GalleryTemplate {
 }
 
 const preferredLooks = [
-  'pack-color-spotlight', 'pack-headline-beat', 'pack-lavender-note', 'pack-comic-beat',
+  'pack-color-spotlight', 'pack-behind-subject', 'pack-hero-moment', 'pack-headline-beat', 'pack-lavender-note', 'pack-comic-beat',
   'pack-amber-stack', 'pack-quiet-reveal', 'pack-marker-mix',
   'pack-electric-blue', 'pack-white-label', 'pack-editorial-strip',
   'pack-dispatch', 'pack-red-stamp',
@@ -28,7 +28,7 @@ function lookPriority(id: string) {
 }
 
 export const galleryTemplates: GalleryTemplate[] = [
-  ...CAPTION_STYLE_CATALOG.map((entry): GalleryTemplate => ({
+  ...CAPTION_STYLE_CATALOG.filter(({ id }) => id !== 'st-behind-subject' && id !== 'st-hero-moment').map((entry): GalleryTemplate => ({
     id: entry.id,
     title: entry.id === 'st-hormozi' ? 'Condensed Punch' : entry.label,
     category: entry.category,
