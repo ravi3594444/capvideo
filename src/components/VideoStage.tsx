@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Eye, Film, Mic2, PencilLine, Sparkles, Upload, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,63 @@ import {
 } from '../utils/captions';
 import { CaptionOverlay } from './CaptionOverlay';
 import type { NoiseCleanStrength } from '../utils/audioEngine';
+
+function VideoCaptionOverlay({ videoRef, videoUrl, captions, styleConfig, currentTime, onSelectCueForEdit }: Pick<
+  VideoStageProps, 'videoRef' | 'videoUrl' | 'captions' | 'styleConfig' | 'currentTime' | 'onSelectCueForEdit'
+>) {
+  const [frameTime, setFrameTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    let frame = 0;
+    let lastFrame = 0;
+    const sample = (now: number) => {
+      if (now - lastFrame >= 31) {
+        lastFrame = now;
+        setFrameTime(video.currentTime);
+      }
+      frame = requestAnimationFrame(sample);
+    };
+    const start = () => {
+      cancelAnimationFrame(frame);
+      setFrameTime(video.currentTime);
+      frame = requestAnimationFrame(sample);
+    };
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      setFrameTime(null);
+    };
+
+    video.addEventListener('playing', start);
+    video.addEventListener('pause', stop);
+    video.addEventListener('ended', stop);
+    video.addEventListener('emptied', stop);
+    if (!video.paused && !video.ended) start();
+    return () => {
+      cancelAnimationFrame(frame);
+      video.removeEventListener('playing', start);
+      video.removeEventListener('pause', stop);
+      video.removeEventListener('ended', stop);
+      video.removeEventListener('emptied', stop);
+    };
+  }, [videoRef, videoUrl]);
+
+  const time = frameTime ?? currentTime;
+  const cue = findActiveCaption(captions, time);
+  if (!cue) return null;
+
+  return (
+    <CaptionOverlay
+      cue={cue}
+      previousCue={styleConfig.pageLayout === 'stack' ? findPreviousCaption(captions, cue) : null}
+      currentTime={time}
+      config={styleConfig}
+      fitHeight
+      onEdit={onSelectCueForEdit}
+    />
+  );
+}
 
 interface VideoStageProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -125,7 +182,6 @@ export function VideoStage({
 
   const activeCue = findActiveCaption(captions, currentTime);
   const spotlightAuto = styleConfig.spotlightAuto ?? true;
-  const previousCue = styleConfig.pageLayout === 'stack' ? findPreviousCaption(captions, activeCue) : null;
 
   const stageAspectClass =
     aspect === 'r916'
@@ -332,14 +388,15 @@ export function VideoStage({
               </div>
             )}
 
-            {videoUrl && activeCue && (
-              <CaptionOverlay
-                cue={activeCue}
-                previousCue={previousCue}
+            {videoUrl && (
+              <VideoCaptionOverlay
+                key={videoUrl}
+                videoRef={videoRef}
+                videoUrl={videoUrl}
+                captions={captions}
                 currentTime={currentTime}
-                config={styleConfig}
-                fitHeight
-                onEdit={onSelectCueForEdit}
+                styleConfig={styleConfig}
+                onSelectCueForEdit={onSelectCueForEdit}
               />
             )}
           </div>

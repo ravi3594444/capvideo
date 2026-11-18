@@ -16,7 +16,7 @@ export interface GalleryTemplate {
 }
 
 const preferredLooks = [
-  'pack-headline-beat', 'pack-comic-beat', 'pack-lavender-note',
+  'pack-color-spotlight', 'pack-headline-beat', 'pack-lavender-note', 'pack-comic-beat',
   'pack-amber-stack', 'pack-quiet-reveal', 'pack-marker-mix',
   'pack-electric-blue', 'pack-white-label', 'pack-editorial-strip',
   'pack-dispatch', 'pack-red-stamp',

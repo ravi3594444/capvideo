@@ -16,6 +16,7 @@ import {
   formatSec,
   formatSrtTime,
   getActiveWordIndex,
+  getCaptionWordClock,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
   getCaptionWordRows,
@@ -68,6 +69,25 @@ test('captionsFromWords groups words into 5-word cues inside trim window', () =>
   assert.equal(cues.length, 2);
   assert.equal(cues[0].text, 'One two three four five');
   assert.equal(cues[1].text, 'six.');
+});
+
+test('spoken emphasis uses uneven source timings after regrouping, splitting and reloading', () => {
+  const [cue] = captionsFromWords([
+    { word: 'Make', start: 0.12, end: 0.2 },
+    { word: 'it', start: 0.22, end: 0.33 },
+    { word: 'count', start: 0.96, end: 1.43 },
+  ]);
+  assert.equal(getActiveWordIndex(cue, 0.85), 1);
+  assert.equal(getActiveWordIndex(cue, 0.97), 2);
+  assert.equal(getActiveWordIndex({ ...cue, wordTiming: undefined }, 0.85), 1);
+  assert.equal(getActiveWordIndex({ ...cue, wordTiming: undefined }, 0.93), 1);
+  assert.equal(getActiveWordIndex({ ...cue, text: 'Make it worthwhile' }, 0.85), 1);
+  assert.equal(getActiveWordIndex(regroupCaptionsSmart([cue], '3')[0], 0.97), 2);
+  const [, tail] = splitCaption(cue)!;
+  assert.equal(tail.start, 0.96);
+  assert.ok(Math.abs(getCaptionWordClock(tail, 1).elapsed - 0.04) < 0.001);
+  const draft = parseStudioDraft(JSON.stringify({ captions: [cue] }))!;
+  assert.equal(getActiveWordIndex(draft.captions[0], 0.97), 2);
 });
 
 test('captionsFromSegments and captionsFromText split long lines cleanly', () => {
@@ -321,6 +341,42 @@ test('Spotlight auto key words highlight numbers, prices, entities, negative wor
   assert.equal(isWordSpotlightKey('Save', toggledOn, true), true);
 });
 
+test('emphasis ranks short hooks, skips hesitations, and pulses only on the selected beat', () => {
+  assert.deepEqual(extractAutoKeyWords('Eee umm like'), []);
+  assert.deepEqual(extractAutoKeyWords('Make it count.'), ['count']);
+  assert.deepEqual(extractAutoKeyWords('Only ₹499 today.'), ['₹499']);
+  assert.deepEqual(extractAutoKeyWords('Speed vs quality').sort(), ['quality', 'speed']);
+  const settings = {
+    ...DEFAULT_STYLE_CONFIG,
+    word: 'count',
+    wordIndex: 2,
+    activeWordIndex: 2,
+    wordDurationSec: 0.4,
+    cueElapsedSec: 0.8,
+  };
+  const settled = getWordVisualSpec({ ...settings, isSpotlightKey: true, wordElapsedSec: 0.37 });
+  const peak = getWordVisualSpec({ ...settings, isSpotlightKey: true, wordElapsedSec: 0.07 });
+  const ordinary = getWordVisualSpec({ ...settings, isSpotlightKey: false, wordElapsedSec: 0.07 });
+  assert.ok(peak.scale > settled.scale);
+  assert.equal(ordinary.scale, settled.scale);
+  assert.equal(getCaptionHeadlineIndex({ id: 'plain', start: 0, end: 1, text: 'Make it count.', keyWords: [] }, ['Make', 'it', 'count.'], 'st-minimal', 'scaleUp'), -1);
+});
+
+test('calm captions emphasize with color or a keyword tag without enlarging the text', () => {
+  const look = (id: string) => ({ ...DEFAULT_STYLE_CONFIG, ...CURATED_PRESET_PACKS.find(pack => pack.id === id)?.apply });
+  const beat = { word: 'count', wordIndex: 2, activeWordIndex: 2, wordElapsedSec: 0.07, isSpotlightKey: true };
+  const accent = look('pack-color-spotlight');
+  const colored = getWordVisualSpec({ ...accent, ...beat });
+  assert.equal(colored.color, '#bcf57a');
+  assert.equal(colored.scale, 1);
+  assert.equal(colored.backgroundColor, null);
+  const tag = look('pack-lavender-note');
+  assert.equal(getWordVisualSpec({ ...tag, ...beat }).backgroundColor, '#d3c1fd');
+  const ordinaryWord = getWordVisualSpec({ ...tag, ...beat, isSpotlightKey: false });
+  assert.equal(ordinaryWord.color, '#ffffff');
+  assert.equal(ordinaryWord.backgroundColor, null);
+});
+
 test('removeFillerWordsFromCues, buildVtt, buildPlainTranscript, and two-axis animations work cleanly', () => {
   const cleaned = removeFillerWordsFromCues([
     { id: 'f1', start: 0, end: 2, text: 'Um hello, uh watch this!' },
@@ -346,7 +402,7 @@ test('removeFillerWordsFromCues, buildVtt, buildPlainTranscript, and two-axis an
   });
   assert.equal(popHidden.isHidden, true);
 
-  const spotlightBig = getWordVisualSpec({
+  const spotlightColor = getWordVisualSpec({
     style: 'st-font-switch',
     word: '$99',
     wordIndex: 0,
@@ -356,8 +412,8 @@ test('removeFillerWordsFromCues, buildVtt, buildPlainTranscript, and two-axis an
     effect: 'none',
     isSpotlightKey: true,
   });
-  assert.ok(spotlightBig.scale >= 1.3);
-  assert.equal(spotlightBig.color, '#22d3ee');
+  assert.equal(spotlightColor.scale, 1);
+  assert.equal(spotlightColor.color, '#22d3ee');
 
   const prev = findPreviousCaption(
     [

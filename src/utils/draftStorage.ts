@@ -67,12 +67,19 @@ export function parseStudioDraft(raw: string | null): StudioDraft | null {
             .map((k) => k.trim().slice(0, 64))
             .slice(0, 40)
         : undefined;
+      const wordTiming = Array.isArray(item.wordTiming) && item.wordTiming.length <= 150
+        && item.wordTiming.every(word => word && typeof word.text === 'string' && word.text.length <= 500
+          && Number.isFinite(word.start) && Number.isFinite(word.end)
+          && word.start >= 0 && word.end <= 1 && word.end >= word.start)
+        ? item.wordTiming.map(({ text, start, end }) => ({ text, start, end }))
+        : undefined;
       cleanCaptions.push({
         id: typeof item.id === 'string' && item.id.trim() ? item.id.slice(0, 80) : `draft_${i}`,
         start: Math.max(0, start),
         end: Math.max(Math.max(0, start) + 0.1, end),
         text: typeof item.text === 'string' ? item.text.slice(0, 500) : '',
         ...(cleanKeys ? { keyWords: cleanKeys } : {}),
+        ...(wordTiming ? { wordTiming } : {}),
       });
     }
 

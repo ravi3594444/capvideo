@@ -42,6 +42,8 @@ export interface CaptionCue {
   end: number;
   text: string;
   keyWords?: string[];
+  // Offsets within the cue, as fractions of its duration, so retiming moves the words with it.
+  wordTiming?: WordTokenTimed[];
 }
 
 export interface StyleConfig {
@@ -324,7 +326,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
   {
     id: 'pack-spotlight',
     label: 'Spotlight Mix',
-    subtitle: 'Key words 1.4× bold · Serif beat contrast',
+    subtitle: 'Colored key words with a serif accent',
     apply: {
       style: 'st-font-switch',
       fontFamily: 'manrope',
@@ -402,6 +404,12 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
     },
   },
   {
+    id: 'pack-color-spotlight',
+    label: 'Color Spotlight',
+    subtitle: 'One accent draws the eye while the words stay the same size',
+    apply: { position: 'pos-third', style: 'st-minimal', fontFamily: 'manrope', revealMode: 'spotlight', effect: 'none', fontSize: 23, accentColor: '#bcf57a', wordSpacing: 0.2 },
+  },
+  {
     id: 'pack-quiet-reveal',
     label: 'Quiet Reveal',
     subtitle: 'Clean white type, one word at a time',
@@ -434,7 +442,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
   {
     id: 'pack-lavender-note',
     label: 'Lavender Note',
-    subtitle: 'Soft pill around the spoken word',
+    subtitle: 'A soft pill on the key word as it is spoken',
     apply: { position: 'pos-third', style: 'st-highlight', fontFamily: 'manrope', revealMode: 'karaoke', effect: 'fadeIn', fontSize: 21, accentColor: '#d3c1fd', wordSpacing: 0.2 },
   },
   {
@@ -458,7 +466,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
   {
     id: 'pack-dispatch',
     label: 'Dispatch',
-    subtitle: 'A warm orange tag in a simple caption',
+    subtitle: 'An orange tag appears on the key word',
     apply: { position: 'pos-third', style: 'st-highlight', fontFamily: 'mono', revealMode: 'karaoke', effect: 'maskSlide', fontSize: 20, accentColor: '#ffbf97' },
   },
   {
@@ -471,7 +479,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
 
 export const REVEAL_MODE_OPTIONS: { id: RevealMode; label: string; desc: string }[] = [
   { id: 'karaoke', label: 'Karaoke', desc: 'Full line visible; active word pops' },
-  { id: 'spotlight', label: 'Spotlight', desc: 'Key words enlarged 1.4×; filler muted' },
+  { id: 'spotlight', label: 'Spotlight', desc: 'Accent on key words; motion depends on the entrance effect' },
   { id: 'build', label: 'Build', desc: 'Words reveal progressively left-to-right' },
   { id: 'flash', label: 'Flash', desc: 'Whole short phrase hits cleanly at once' },
   { id: 'pop', label: 'One-Word', desc: 'Single spoken word centered on the beat' },
@@ -520,12 +528,16 @@ function usesHeadlineLayout(style: CaptionStyle, effect: EntranceEffect): boolea
     || (style === 'st-font-snap' && effect === 'wave');
 }
 
-export function getCaptionHeadlineIndex(cue: CaptionCue, words: string[], style: CaptionStyle, effect: EntranceEffect): number {
-  if (!usesHeadlineLayout(style, effect) || !words.length) return -1;
-  const markedIndex = words.findIndex(word => cue.keyWords?.includes(normalizeToken(word)));
-  if (markedIndex >= 0) return markedIndex;
-  return words.reduce((longestIndex, word, index) =>
-    normalizeToken(word).length > normalizeToken(words[longestIndex]).length ? index : longestIndex, 0);
+export function getCaptionHeadlineIndex(
+  cue: CaptionCue, words: string[], style: CaptionStyle, effect: EntranceEffect, spotlightAuto = true
+): number {
+  if (!usesHeadlineLayout(style, effect)) return -1;
+  const preferred = getCaptionSpotlightWords(cue, spotlightAuto);
+  for (const key of preferred) {
+    const index = words.findIndex(word => normalizeToken(word) === key);
+    if (index >= 0) return index;
+  }
+  return -1;
 }
 
 export function getCaptionWordRows(words: string[], headlineIndex: number, wordsPerRow: number) {
@@ -557,13 +569,17 @@ const WEAK_STOP_WORDS = new Set([
   'um', 'uh', 'er', 'ah', 'hmm', 'like', 'basically', 'literally', 'actually',
 ]);
 
+const SPOKEN_FILLER = /^(?:u+h+|u+m+|e{2,}|e+h+|h+m+|a+h+)$/i;
+const COMPARISON_WORDS = new Set(['vs', 'or', 'versus']);
+
 const NEGATIVE_WORDS = new Set([
   "can't", 'cant', 'never', "don't", 'dont', "won't", 'wont', 'stop', 'quit', 'fail', 'failed',
   'mistake', 'mistakes', 'wrong', 'broken', 'lost', 'worst', 'avoid', 'zero', 'nothing', 'bad',
 ]);
 
 export function normalizeToken(raw: string): string {
-  return raw.toLowerCase().replace(/^[^a-z0-9$%']+|[^a-z0-9$%']+$/g, '');
+  return raw.toLowerCase().normalize('NFKC').replace(/’/g, "'")
+    .replace(/^[^\p{L}\p{M}\p{N}\p{Sc}%]+|[^\p{L}\p{M}\p{N}\p{Sc}%]+$/gu, '');
 }
 
 export function isNegativeEmphasisWord(raw: string): boolean {
@@ -571,59 +587,37 @@ export function isNegativeEmphasisWord(raw: string): boolean {
   return NEGATIVE_WORDS.has(norm);
 }
 
-/**
- * Rule-based Spotlight emphasis picker modeled after VideoCaptions.ai public method:
- * - Highlights numbers, prices ($), percentages (%), times/dates
- * - Highlights mid-sentence capitalized proper nouns/places
- * - Highlights paired items around "or" / "vs" / "&"
- * - Highlights long high-content nouns/power words while skipping weak fillers/auxiliaries
- */
 export function extractAutoKeyWords(text: string): string[] {
   const tokens = text.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return [];
-  const selected = new Set<string>();
+  const normalized = tokens.map(normalizeToken);
+  const scores = new Map<string, number>();
+  let comparison = false;
 
-  tokens.forEach((raw, idx) => {
-    const clean = normalizeToken(raw);
-    if (!clean) return;
+  tokens.forEach((raw, index) => {
+    const word = normalized[index];
+    if (!word || (WEAK_STOP_WORDS.has(word) && !NEGATIVE_WORDS.has(word)) || SPOKEN_FILLER.test(word) || COMPARISON_WORDS.has(word)) return;
+    const paired = COMPARISON_WORDS.has(normalized[index - 1]) || COMPARISON_WORDS.has(normalized[index + 1])
+      || tokens[index - 1] === '&' || tokens[index + 1] === '&';
+    const numeric = /[\p{N}\p{Sc}%]/u.test(word);
+    const entity = index > 0 && /^[A-Z][a-z]{2,}/.test(raw.replace(/^[^\p{L}]+/u, ''));
+    const negative = NEGATIVE_WORDS.has(word);
+    if (word.length < 3 && !numeric && !negative) return;
+    comparison ||= paired;
 
-    const strippedPunct = raw.replace(/^["'([\s]+|["')\].,!?;:\s]+$/g, '');
-    const isNumberOrMoneyOrPercent = /\d|^\$|%$/.test(strippedPunct);
-    const isCapitalizedEntity =
-      idx > 0 && /^[A-Z][a-zA-Z0-9'-]{1,}$/.test(strippedPunct) && !WEAK_STOP_WORDS.has(clean);
-    const isAllCaps = /^[A-Z]{2,}$/.test(strippedPunct);
-    const isNegative = NEGATIVE_WORDS.has(clean);
-
-    // Pair rule ("this vs that", "speed or quality")
-    const prevClean = idx > 0 ? normalizeToken(tokens[idx - 1]) : '';
-    const nextClean = idx < tokens.length - 1 ? normalizeToken(tokens[idx + 1]) : '';
-    const isPairedSide =
-      (prevClean === 'vs' || prevClean === 'or' || nextClean === 'vs' || nextClean === 'or') &&
-      clean.length >= 3 &&
-      !WEAK_STOP_WORDS.has(clean);
-
-    if (isNumberOrMoneyOrPercent || isCapitalizedEntity || isAllCaps || isNegative || isPairedSide) {
-      selected.add(clean);
-    }
+    const score = Math.min(word.length, 9) / 4 + (index === tokens.length - 1 ? 0.8 : 0)
+      + (numeric ? 18 : 0) + (paired ? 12 : 0)
+      + (entity ? 7 : 0) + (negative ? 6 : 0) + (word === 'never' ? 2 : 0)
+      + (/^[A-Z]{3,}$/.test(raw.replace(/[^a-z]/gi, '')) ? 4 : 0);
+    scores.set(word, Math.max(score, scores.get(word) ?? 0));
   });
 
-  // Ensure at least 1 strong content word gets Spotlight if the phrase has ≥ 2 non-stop words
-  if (selected.size === 0) {
-    let bestWord = '';
-    let bestScore = 0;
-    tokens.forEach((raw, idx) => {
-      const clean = normalizeToken(raw);
-      if (!clean || WEAK_STOP_WORDS.has(clean) || clean.length < 4) return;
-      const score = clean.length + (idx === tokens.length - 1 ? 2 : 0);
-      if (score > bestScore) {
-        bestScore = score;
-        bestWord = clean;
-      }
-    });
-    if (bestWord) selected.add(bestWord);
-  }
+  const limit = tokens.length > 5 ? 3 : tokens.length === 5 || comparison ? 2 : 1;
+  return [...scores].sort((first, second) => second[1] - first[1]).slice(0, limit).map(([word]) => word);
+}
 
-  return Array.from(selected);
+export function getCaptionSpotlightWords(cue: Pick<CaptionCue, 'text' | 'keyWords'>, spotlightAuto = true): string[] {
+  if (Array.isArray(cue.keyWords)) return cue.keyWords.map(normalizeToken).filter(Boolean);
+  return spotlightAuto ? extractAutoKeyWords(cue.text) : [];
 }
 
 export function isWordSpotlightKey(
@@ -631,23 +625,14 @@ export function isWordSpotlightKey(
   cue: Pick<CaptionCue, 'text' | 'keyWords'>,
   spotlightAuto = true
 ): boolean {
-  const norm = normalizeToken(rawWord);
-  if (!norm) return false;
-  if (Array.isArray(cue.keyWords)) {
-    return cue.keyWords.map(normalizeToken).includes(norm);
-  }
-  if (!spotlightAuto) return false;
-  return extractAutoKeyWords(cue.text).includes(norm);
+  const word = normalizeToken(rawWord);
+  return Boolean(word && getCaptionSpotlightWords(cue, spotlightAuto).includes(word));
 }
 
 export function toggleCueKeyWord(cue: CaptionCue, rawWord: string, spotlightAuto = true): CaptionCue {
   const norm = normalizeToken(rawWord);
   if (!norm) return cue;
-  const base = Array.isArray(cue.keyWords)
-    ? cue.keyWords.map(normalizeToken).filter(Boolean)
-    : spotlightAuto
-      ? extractAutoKeyWords(cue.text)
-      : [];
+  const base = getCaptionSpotlightWords(cue, spotlightAuto);
   const exists = base.includes(norm);
   const next = exists ? base.filter((w) => w !== norm) : [...base, norm];
   return {
@@ -699,23 +684,39 @@ export interface WordTokenTimed {
   end: number;
 }
 
+function getTimedCaptionWords(cue: CaptionCue, words: string[]): WordTokenTimed[] | undefined {
+  const stored = cue.wordTiming;
+  if (!stored || stored.length !== words.length || !stored.every((word, i) =>
+    normalizeToken(word.text) === normalizeToken(words[i]))) return undefined;
+
+  const duration = cue.end - cue.start;
+  return stored.map((word, i) => ({
+    text: words[i],
+    start: cue.start + word.start * duration,
+    end: cue.start + word.end * duration,
+  }));
+}
+
+function attachWordTiming(cue: CaptionCue, tokens: WordTokenTimed[]): CaptionCue {
+  const span = Math.max(0.001, cue.end - cue.start);
+  const fraction = (time: number) => Math.max(0, Math.min(1, (time - cue.start) / span));
+  return { ...cue, wordTiming: tokens.map(token => ({
+    text: token.text,
+    start: fraction(token.start),
+    end: fraction(token.end),
+  })) };
+}
+
 export function cuesToTimedTokens(cues: CaptionCue[]): WordTokenTimed[] {
-  const tokens: WordTokenTimed[] = [];
-  const sorted = cues.slice().sort((a, b) => a.start - b.start);
-  for (const cue of sorted) {
+  return cues.slice().sort((a, b) => a.start - b.start).flatMap(cue => {
     const words = cue.text.trim().split(/\s+/).filter(Boolean);
-    if (!words.length) continue;
-    const span = Math.max(0.2, cue.end - cue.start);
-    const per = span / words.length;
-    words.forEach((w, i) => {
-      tokens.push({
-        text: w,
-        start: Math.round((cue.start + i * per) * 100) / 100,
-        end: Math.round((cue.start + (i + 1) * per) * 100) / 100,
-      });
-    });
-  }
-  return tokens;
+    const per = Math.max(0.2, cue.end - cue.start) / Math.max(1, words.length);
+    return getTimedCaptionWords(cue, words) ?? words.map((text, i) => ({
+      text,
+      start: Math.round((cue.start + i * per) * 100) / 100,
+      end: Math.round((cue.start + (i + 1) * per) * 100) / 100,
+    }));
+  });
 }
 
 /**
@@ -738,6 +739,7 @@ export function regroupCaptionsSmart(
 
   const targetMax =
     wordsPerPage === '2' ? 2 : wordsPerPage === '3' ? 3 : wordsPerPage === '4' ? 4 : 4;
+  const preserveTiming = cues.some(cue => cue.wordTiming);
   const groups: WordTokenTimed[][] = [];
   let buf: WordTokenTimed[] = [];
 
@@ -803,12 +805,8 @@ export function regroupCaptionsSmart(
     const maxAllowedEnd = nextStart - 0.04;
     const heldEnd = Math.min(maxAllowedEnd, rawEnd + Math.max(0, pauseHoldSec));
     const end = Math.round(Math.max(start + 0.25, Math.max(rawEnd, heldEnd)) * 100) / 100;
-    return {
-      id: createCueId(idx),
-      start,
-      end,
-      text: g.map((t) => t.text).join(' '),
-    };
+    const cue = { id: createCueId(idx), start, end, text: g.map(t => t.text).join(' ') };
+    return preserveTiming ? attachWordTiming(cue, g) : cue;
   });
 }
 
@@ -867,6 +865,8 @@ export function getWordVisualSpec(opts: {
   effect?: EntranceEffect;
   cueElapsedSec?: number;
   cueDurationSec?: number;
+  wordElapsedSec?: number;
+  wordDurationSec?: number;
   isSpotlightKey?: boolean;
   isHeadlineWord?: boolean;
   isNegative?: boolean;
@@ -883,6 +883,8 @@ export function getWordVisualSpec(opts: {
     effect = 'none',
     cueElapsedSec = 0.25,
     cueDurationSec = 1.5,
+    wordElapsedSec,
+    wordDurationSec = 0.3,
     isSpotlightKey = false,
     isHeadlineWord = false,
     isNegative = false,
@@ -1026,10 +1028,10 @@ export function getWordVisualSpec(opts: {
         fontCss: impactFont,
         fontWeight: 700,
         fontStyle: 'normal',
-        color: isOn ? accentColor : '#ffffff',
+        color: isOn && isSpotlightKey ? accentColor : '#ffffff',
         backgroundColor: null,
         opacity: 1,
-        scale: isOn ? 1.15 : 1,
+        scale: isOn && isSpotlightKey ? 1.15 : 1,
         translateYEm: 0,
         rotateDeg: 0,
         shadowMode: 'heavy-outline',
@@ -1176,9 +1178,18 @@ export function getWordVisualSpec(opts: {
     spec.color = wordIndex % 2 === 0 ? accentColor : '#ffc1a9';
     spec.scale = isOn ? 1.1 : 1;
   } else if (style === 'st-highlight' && isOn) {
-    spec.backgroundColor = accentColor;
-    if (effect === 'fadeIn' || effect === 'maskSlide') spec.borderRadiusEm = 0.35;
+    const usesKeywordTag = effect === 'fadeIn' || effect === 'maskSlide';
+    if (usesKeywordTag && !isSpotlightKey) {
+      spec.backgroundColor = null;
+      spec.color = '#ffffff';
+      spec.shadowMode = 'outline';
+    } else {
+      spec.backgroundColor = accentColor;
+      if (usesKeywordTag) spec.borderRadiusEm = 0.35;
+    }
   }
+
+  const energetic = effect === 'scaleUp' || effect === 'bounce';
 
   // Axis 1: Reveal Mode behavior
   if (effectiveReveal === 'pop') {
@@ -1193,16 +1204,13 @@ export function getWordVisualSpec(opts: {
   } else if (effectiveReveal === 'spotlight') {
     if (isSpotlightKey) {
       spec.isSpotlightKey = true;
-      spec.scale = Math.max(spec.scale, 1.32);
+      spec.scale = energetic ? Math.max(spec.scale, 1.25) : 1;
       spec.fontWeight = 800;
-      if (isNegative && !isOn) {
-        spec.color = '#fb7185';
-      } else if (spec.backgroundColor === null) {
-        spec.color = accentColor;
-      }
-    } else if (!isOn) {
-      spec.opacity = Math.min(spec.opacity, 0.76);
-      spec.scale = Math.min(spec.scale, 0.92);
+      if (spec.backgroundColor === null) spec.color = isNegative && !isOn ? '#fb7185' : accentColor;
+    } else {
+      if (!isOn) spec.opacity = Math.min(spec.opacity, 0.84);
+      if (!energetic) spec.scale = 1;
+      else if (!isOn) spec.scale = Math.min(spec.scale, 0.96);
     }
   } else if (isSpotlightKey && isNegative && !isOn && style !== 'st-hormozi') {
     spec.color = '#fb7185';
@@ -1261,6 +1269,20 @@ export function getWordVisualSpec(opts: {
       spec.glitchDxPx = Math.round(jitterSeed * 3.5);
       spec.glitchColorShift = true;
     }
+  }
+
+  const keyBeat = energetic && isOn && (
+    isHeadlineWord || (isSpotlightKey && (
+      effectiveReveal === 'spotlight' || effectiveReveal === 'pop'
+      || style === 'st-highlight' || style === 'st-hormozi'
+    ))
+  );
+  if (keyBeat && wordElapsedSec != null && wordElapsedSec >= 0) {
+    const duration = Math.max(0.09, Math.min(0.28, wordDurationSec));
+    const progress = Math.min(1, wordElapsedSec / duration);
+    const pulse = progress < 0.25 ? progress * 4 : Math.pow((1 - progress) / 0.75, 2);
+    spec.scale *= 1 + 0.22 * pulse;
+    spec.translateYEm -= 0.07 * pulse;
   }
 
   return spec;
@@ -1362,52 +1384,35 @@ export function captionsFromWords(
   trimEnd = Number.POSITIVE_INFINITY,
   wordsPerPage: WordsPerPage = 'auto'
 ): CaptionCue[] {
-  const rawCues: CaptionCue[] = [];
-  const tempTokens: WordTokenTimed[] = [];
-
-  for (const w of words) {
-    const token = (w.punctuated_word || w.word || w.text || '').trim();
-    if (!token) continue;
-    const s = (Number(w.start) || 0) + offset;
-    const e = (Number(w.end) || s + 0.25) + offset;
-    if (s < trimStart - 0.05 || s > trimEnd + 0.05) continue;
-    tempTokens.push({ text: token, start: s, end: e });
+  const tokens: WordTokenTimed[] = [];
+  for (const word of words) {
+    const text = (word.punctuated_word || word.word || word.text || '').trim();
+    const start = Number(word.start) + offset;
+    if (!text || !Number.isFinite(start) || start < trimStart - 0.05 || start > trimEnd + 0.05) continue;
+    const rawEnd = Number(word.end) + offset;
+    tokens.push({ text, start, end: Number.isFinite(rawEnd) ? Math.max(start + 0.01, rawEnd) : start + 0.25 });
   }
 
-  if (!tempTokens.length) return [];
+  const cueFromGroup = (group: WordTokenTimed[], index: number) => {
+    const start = Math.round(group[0].start * 100) / 100;
+    const end = Math.round(Math.max(start + 0.3, ...group.map(word => word.end)) * 100) / 100;
+    return attachWordTiming({ id: createCueId(index), start, end, text: group.map(word => word.text).join(' ') }, group);
+  };
 
-  // Preserve word-level timestamps directly via regroupCaptionsSmart when custom page density requested,
-  // and backwards-compatible 5-word packing when default is called cleanly
   if (wordsPerPage !== 'auto') {
-    const asCues = tempTokens.map((t, i) => ({
-      id: `w_${i}`,
-      start: t.start,
-      end: t.end,
-      text: t.text,
-    }));
-    return regroupCaptionsSmart(asCues, wordsPerPage, 0.75);
+    return regroupCaptionsSmart(tokens.map((token, index) => cueFromGroup([token], index)), wordsPerPage, 0.75);
   }
 
-  let cur: { start: number; end: number; words: string[] } | null = null;
-  for (const tok of tempTokens) {
-    if (!cur || cur.words.length >= 5 || tok.start - cur.end > 0.8 || tok.end - cur.start > 3.2) {
-      if (cur) rawCues.push({ id: createCueId(rawCues.length), start: Math.round(cur.start * 100) / 100, end: Math.round(Math.max(cur.end, cur.start + 0.3) * 100) / 100, text: cur.words.join(' ') });
-      cur = { start: tok.start, end: tok.end, words: [tok.text] };
+  const groups: WordTokenTimed[][] = [];
+  for (const token of tokens) {
+    const group = groups[groups.length - 1];
+    if (!group || group.length >= 5 || token.start - group[group.length - 1].end > 0.8 || token.end - group[0].start > 3.2) {
+      groups.push([token]);
     } else {
-      cur.words.push(tok.text);
-      cur.end = Math.max(cur.end, tok.end);
+      group.push(token);
     }
   }
-  if (cur) {
-    rawCues.push({
-      id: createCueId(rawCues.length),
-      start: Math.round(cur.start * 100) / 100,
-      end: Math.round(Math.max(cur.end, cur.start + 0.3) * 100) / 100,
-      text: cur.words.join(' '),
-    });
-  }
-
-  return rawCues;
+  return groups.map(cueFromGroup);
 }
 
 export function captionsFromSegments(
@@ -1481,23 +1486,35 @@ export function findPreviousCaption(captions: CaptionCue[], activeCue: CaptionCu
   return activeCue.start - prev.end <= 2.5 ? prev : null;
 }
 
-export function getActiveWordIndex(caption: CaptionCue, currentTime: number): number {
-  const words = caption.text.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return 0;
+export function getCaptionWordClock(caption: CaptionCue, currentTime: number, words = caption.text.trim().split(/\s+/).filter(Boolean)) {
   const duration = Math.max(0.1, caption.end - caption.start);
-  const progress = Math.max(0, Math.min(0.9999, (currentTime - caption.start) / duration));
-  return Math.min(words.length - 1, Math.floor(progress * words.length));
+  const wordDuration = duration / Math.max(1, words.length);
+  const elapsed = currentTime - caption.start;
+  const timed = getTimedCaptionWords(caption, words);
+  if (timed?.length) {
+    let index = timed.length - 1;
+    while (index > 0 && currentTime + 0.005 < timed[index].start) index--;
+    const word = timed[index];
+    return { index, elapsed: currentTime - word.start, duration: word.end - word.start };
+  }
+  const index = Math.max(0, Math.min(words.length - 1, Math.floor(elapsed / wordDuration)));
+  return { index, elapsed: elapsed - index * wordDuration, duration: wordDuration };
+}
+
+export function getActiveWordIndex(caption: CaptionCue, currentTime: number): number {
+  return getCaptionWordClock(caption, currentTime).index;
 }
 
 export function splitCaption(caption: CaptionCue): [CaptionCue, CaptionCue] | null {
   const words = caption.text.trim().split(/\s+/).filter(Boolean);
   if (words.length < 2) return null;
   const mid = Math.ceil(words.length / 2);
-  const tMid = Math.round((caption.start + (caption.end - caption.start) / 2) * 100) / 100;
+  const timed = getTimedCaptionWords(caption, words);
+  const tMid = Math.round((timed?.[mid]?.start ?? ((caption.start + caption.end) / 2)) * 100) / 100;
   const first: CaptionCue = {
     id: caption.id,
     start: caption.start,
-    end: Math.max(caption.start + 0.2, tMid),
+    end: Math.max(caption.start + (timed ? 0.01 : 0.2), tMid),
     text: words.slice(0, mid).join(' '),
     keyWords: caption.keyWords,
   };
@@ -1508,7 +1525,7 @@ export function splitCaption(caption: CaptionCue): [CaptionCue, CaptionCue] | nu
     text: words.slice(mid).join(' '),
     keyWords: caption.keyWords,
   };
-  return [first, second];
+  return timed ? [attachWordTiming(first, timed.slice(0, mid)), attachWordTiming(second, timed.slice(mid))] : [first, second];
 }
 
 export function shiftCaptions(
@@ -1542,9 +1559,10 @@ export function mergeCaptionWithNext(captions: CaptionCue[], cueId: string): Cap
     start: current.start,
     end: Math.max(current.end, next.end),
     text: `${current.text.trim()} ${next.text.trim()}`.trim(),
-    ...(mergedKeys.length > 0 ? { keyWords: mergedKeys } : {}),
+    ...(mergedKeys.length > 0 || (current.keyWords && next.keyWords) ? { keyWords: mergedKeys } : {}),
   };
-  return [...sorted.slice(0, idx), merged, ...sorted.slice(idx + 2)];
+  const cue = current.wordTiming || next.wordTiming ? attachWordTiming(merged, cuesToTimedTokens([current, next])) : merged;
+  return [...sorted.slice(0, idx), cue, ...sorted.slice(idx + 2)];
 }
 
 export function encodeWav16kMono(samples: Float32Array): Blob {
@@ -1592,6 +1610,7 @@ function cloneCues(cues: CaptionCue[]): CaptionCue[] {
   return cues.map((c) => ({
     ...c,
     ...(Array.isArray(c.keyWords) ? { keyWords: [...c.keyWords] } : {}),
+    ...(c.wordTiming ? { wordTiming: c.wordTiming.map(word => ({ ...word })) } : {}),
   }));
 }
 
@@ -1603,7 +1622,8 @@ function areCuesEqual(a: CaptionCue[], b: CaptionCue[]): boolean {
       a[i].start !== b[i].start ||
       a[i].end !== b[i].end ||
       a[i].text !== b[i].text ||
-      JSON.stringify(a[i].keyWords || []) !== JSON.stringify(b[i].keyWords || [])
+      JSON.stringify(a[i].keyWords) !== JSON.stringify(b[i].keyWords)
+      || JSON.stringify(a[i].wordTiming) !== JSON.stringify(b[i].wordTiming)
     ) {
       return false;
     }

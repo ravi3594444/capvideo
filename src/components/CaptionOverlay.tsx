@@ -1,13 +1,14 @@
 import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import {
   clampWordSpacing,
-  getActiveWordIndex,
+  getCaptionWordClock,
+  getCaptionSpotlightWords,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
   getCaptionWordRows,
   getWordVisualSpec,
   isNegativeEmphasisWord,
-  isWordSpotlightKey,
+  normalizeToken,
   resolveEffectiveEffect,
   resolveEffectiveReveal,
   type CaptionCue,
@@ -47,17 +48,18 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
 
   if (!hasWords) return null;
 
-  const activeWordIndex = getActiveWordIndex(cue, currentTime);
+  const { index: activeWordIndex, elapsed: wordElapsedSec, duration: wordDurationSec } = getCaptionWordClock(cue, currentTime, words);
   const revealMode = resolveEffectiveReveal(config);
   const effect = resolveEffectiveEffect(config);
   const container = getCaptionContainerSpec(config.style, effect, config.accentColor);
-  const headlineIndex = getCaptionHeadlineIndex(cue, words, config.style, effect);
+  const spotlightAuto = config.spotlightAuto ?? true;
+  const keywords = getCaptionSpotlightWords(cue, spotlightAuto);
+  const headlineIndex = getCaptionHeadlineIndex(cue, words, config.style, effect, spotlightAuto);
   const scaleInLayout = headlineIndex >= 0 || revealMode === 'pop';
   const rows = getCaptionWordRows(words, headlineIndex, Number(config.wordsPerPage) || 4)
     .filter(row => revealMode === 'pop'
       ? row.some(({ index }) => index === activeWordIndex)
       : revealMode !== 'build' || row[0].index <= activeWordIndex);
-  const spotlightAuto = config.spotlightAuto ?? true;
   const cueElapsedSec = Math.max(0, currentTime - cue.start);
   const cueDurationSec = Math.max(0.2, cue.end - cue.start);
   const Word = onEdit ? 'button' : 'span';
@@ -101,7 +103,9 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
                   effect,
                   cueElapsedSec,
                   cueDurationSec,
-                  isSpotlightKey: isWordSpotlightKey(word, cue, spotlightAuto),
+                  wordElapsedSec,
+                  wordDurationSec,
+                  isSpotlightKey: keywords.includes(normalizeToken(word)),
                   isHeadlineWord: wordIndex === headlineIndex,
                   isNegative: isNegativeEmphasisWord(word),
                   currentTimeSec: currentTime,

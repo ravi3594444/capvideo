@@ -2,13 +2,14 @@ import {
   clampWordSpacing,
   findActiveCaption,
   findPreviousCaption,
-  getActiveWordIndex,
+  getCaptionWordClock,
+  getCaptionSpotlightWords,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
   getCaptionWordRows,
   getWordVisualSpec,
   isNegativeEmphasisWord,
-  isWordSpotlightKey,
+  normalizeToken,
   resolveEffectiveEffect,
   resolveEffectiveReveal,
   type AspectRatio,
@@ -205,7 +206,8 @@ export async function exportBurnedInWebM(
     const cue = findActiveCaption(captions, video.currentTime);
     if (cue) {
       const words = cue.text.trim().split(/\s+/).filter(Boolean);
-      const on = getActiveWordIndex(cue, video.currentTime);
+      const { index: on, elapsed: wordElapsedSec, duration: wordDurationSec } = getCaptionWordClock(cue, video.currentTime, words);
+      const keywords = getCaptionSpotlightWords(cue, spotlightAuto);
       const cueElapsed = Math.max(0, video.currentTime - cue.start);
       const cueDuration = Math.max(0.2, cue.end - cue.start);
       ctx.textBaseline = 'middle';
@@ -216,7 +218,7 @@ export async function exportBurnedInWebM(
           : null;
 
       const wrapSize = Number(styleConfig.wordsPerPage) || 4;
-      const headlineIndex = getCaptionHeadlineIndex(cue, words, styleConfig.style, effectiveEffect);
+      const headlineIndex = getCaptionHeadlineIndex(cue, words, styleConfig.style, effectiveEffect, spotlightAuto);
       const lines = effectiveReveal === 'pop'
         ? words[on] ? [[{ word: words[on], index: on }]] : []
         : getCaptionWordRows(words, headlineIndex, wrapSize);
@@ -224,7 +226,6 @@ export async function exportBurnedInWebM(
       const lineSpecs = lines.map((line) =>
         line
           .map(({ word, index: gi }) => {
-            const isKey = isWordSpotlightKey(word, cue, spotlightAuto);
             const spec = getWordVisualSpec({
               style: styleConfig.style,
               fontFamily: styleConfig.fontFamily,
@@ -236,7 +237,9 @@ export async function exportBurnedInWebM(
               effect: effectiveEffect,
               cueElapsedSec: cueElapsed,
               cueDurationSec: cueDuration,
-              isSpotlightKey: isKey,
+              wordElapsedSec,
+              wordDurationSec,
+              isSpotlightKey: keywords.includes(normalizeToken(word)),
               isHeadlineWord: gi === headlineIndex,
               isNegative: isNegativeEmphasisWord(word),
               currentTimeSec: video.currentTime,
