@@ -146,9 +146,9 @@ export function VideoStage({
 
   const stageAspectClass =
     aspect === 'r916'
-      ? 'aspect-[9/16] max-w-[min(320px,calc(52svh*0.5625))] lg:max-w-[320px]'
+      ? 'aspect-[9/16] max-w-[min(320px,calc(52svh*0.5625))] lg:max-w-[min(290px,calc(48svh*0.5625))]'
       : aspect === 'r11'
-        ? 'aspect-square max-w-[min(400px,52svh)] lg:max-w-[400px]'
+        ? 'aspect-square max-w-[min(400px,52svh)] lg:max-w-[min(400px,48svh)]'
         : 'aspect-video max-w-full';
 
   const handleOpenActiveFix = () => {
@@ -195,7 +195,7 @@ export function VideoStage({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle>
-                <h2 className="font-display text-lg font-bold">Preview</h2>
+                <h2 className="workspace-section-title">Preview</h2>
               </CardTitle>
               <CardDescription className="text-xs tabular-nums mt-0.5">
                 {previewLabel ? `Auditioning: ${previewLabel}` : fileInfo}

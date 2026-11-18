@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button as AstryxButton } from '@astryxdesign/core/Button';
-import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Theme } from '@astryxdesign/core/theme';
 import { neutralTheme } from '@astryxdesign/theme-neutral';
 import {
   AlertCircle,
   Captions,
   Download,
-  Moon,
   Palette,
   Pipette,
   RotateCcw,
   Sparkles,
-  Sun,
   type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -95,7 +92,7 @@ function InspectorPanel({ tab, activeTab, children }: { tab: InspectorTab; activ
   const active = tab === activeTab;
   return (
     <section
-      role="tabpanel"
+      role="region"
       id={`inspector-panel-${tab}`}
       aria-labelledby={`inspector-tab-${tab}`}
       hidden={!active}
@@ -119,7 +116,6 @@ function StudioApp() {
   const isCompact = useIsCompactLayout();
   const inspectorRef = useRef<HTMLDivElement | null>(null);
   const videoPickerRef = useRef<HTMLInputElement | null>(null);
-  const [darkMode, setDarkMode] = useState(true);
 
   const navigate = (view: AppView) => {
     const href = VIEW_HREFS[view];
@@ -211,10 +207,6 @@ function StudioApp() {
   const [cloudPresets, setCloudPresets] = useState<CloudStylePreset[]>([]);
   const [savingProject, setSavingProject] = useState(false);
   const [capabilities, setCapabilities] = useState<ServerCapabilities | null>(null);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-  }, [darkMode]);
 
   useEffect(() => {
     applyDocumentSeo(activeView);
@@ -649,8 +641,8 @@ function StudioApp() {
   };
 
   return (
-    <Theme theme={neutralTheme} mode={darkMode ? 'dark' : 'light'}>
-      <div className="caption-app text-foreground">
+    <Theme theme={neutralTheme} mode="dark">
+      <div data-lg-theme="dark" className="caption-app text-foreground">
         <TopNav
           activeView={activeView}
           onNavigate={navigate}
@@ -684,7 +676,7 @@ function StudioApp() {
           {activeView === 'landing' && <LandingPage onOpenStudio={() => navigate('studio')} />}
           {activeView === 'studio' && (
             <div className="workspace-studio">
-              <div className="workspace-project-bar">
+              <div className="workspace-project-bar glassy-chrome">
                 <div className="workspace-project-name">
                   <h1 className="sr-only">Caption Lite Studio</h1>
                   <Label htmlFor="project-title-input" className="sr-only">Project title</Label>
@@ -703,15 +695,32 @@ function StudioApp() {
                 <div className="workspace-actions">
                   <AstryxButton size="md" variant="secondary" isIconOnly label="Start over with the sample captions"
                     icon={<RotateCcw size={17} />} onClick={handleResetDemo} />
-                  <AstryxButton size="md" variant="secondary" isIconOnly
-                    label={darkMode ? 'Switch to light studio mode' : 'Switch to dark studio mode'}
-                    icon={darkMode ? <Sun size={17} /> : <Moon size={17} />} onClick={() => setDarkMode((previous) => !previous)} />
                   <AstryxButton size="md" variant="primary" label="Export" icon={<Download size={17} />}
                     onClick={() => handleInspectorTabChange('export')} className="workspace-export" />
                 </div>
               </div>
 
               <div className="workspace-grid">
+                <aside className="workspace-side">
+                  <nav className="workspace-tools glassy-chrome" aria-label="Editing tools">
+                    <span className="workspace-tools-heading">Workspace</span>
+                    {INSPECTOR_TABS.map(({ id, label, Icon }) => (
+                      <AstryxButton
+                        key={id}
+                        id={`inspector-tab-${id}`}
+                        size="md"
+                        variant="secondary"
+                        label={label}
+                        aria-current={id === inspectorTab ? 'true' : undefined}
+                        aria-controls={`inspector-panel-${id}`}
+                        icon={<Icon size={17} aria-hidden="true" />}
+                        onClick={() => handleInspectorTabChange(id)}
+                        className="workspace-tool"
+                      />
+                    ))}
+                  </nav>
+                </aside>
+
                 <div className="workspace-preview">
                   <VideoStage
                     videoRef={videoRef}
@@ -807,21 +816,9 @@ function StudioApp() {
                 </div>
 
                 <div ref={inspectorRef} className="workspace-inspector">
-                  <TabList
-                    value={inspectorTab}
-                    onChange={(value) => handleInspectorTabChange(value as InspectorTab)}
-                    role="tablist"
-                    aria-label="Editing tools"
-                    layout="fill"
-                    overflow="visible"
-                    className="workspace-tabs"
-                  >
-                    {INSPECTOR_TABS.map(({ id, label, Icon }) => (
-                      <Tab key={id} id={`inspector-tab-${id}`} value={id} label={label}
-                        panelId={`inspector-panel-${id}`} icon={<Icon size={16} aria-hidden="true" />}
-                        className="workspace-tab" />
-                    ))}
-                  </TabList>
+                  <header className="workspace-inspector-heading">
+                    <h2>{INSPECTOR_TABS.find(({ id }) => id === inspectorTab)?.label}</h2>
+                  </header>
 
                   <InspectorPanel tab="captions" activeTab={inspectorTab}>
                     <CaptionsPanel
@@ -965,7 +962,7 @@ function StudioApp() {
           {activeView === 'guide' && <HowItWorksView onOpenStudio={() => navigate('studio')} />}
         </main>
 
-        <Toaster theme={darkMode ? 'dark' : 'light'} position={isCompact ? 'top-center' : 'bottom-right'} />
+        <Toaster theme="dark" position={isCompact ? 'top-center' : 'bottom-right'} />
       </div>
     </Theme>
   );

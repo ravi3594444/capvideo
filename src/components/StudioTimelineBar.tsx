@@ -82,8 +82,9 @@ export function StudioTimelineBar({
   return (
     <section
       aria-label="Timeline"
-      className="rounded-xl glass-panel px-4 py-3 space-y-2.5"
+      className="workspace-timeline px-4 py-3 space-y-2.5"
     >
+      <h3 className="workspace-section-label">Timeline</h3>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <Button

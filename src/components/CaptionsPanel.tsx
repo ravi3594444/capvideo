@@ -562,9 +562,9 @@ export function CaptionsPanel({
   const sortedCaptions = captions.slice().sort((a, b) => a.start - b.start);
 
   return (
-    <div className="space-y-4 @container/captions">
-      {/* Unified Source & Capture Action Bar */}
-      <div className="space-y-2.5">
+    <div className="caption-inspector space-y-5 @container/captions">
+      <section className="space-y-2.5" aria-labelledby="caption-source-title">
+        <h3 id="caption-source-title" className="workspace-section-label">Caption sources</h3>
         {videoFile && (
           <>
             <div className="flex flex-wrap items-end gap-2">
@@ -694,7 +694,7 @@ export function CaptionsPanel({
             Hearing: “{liveInterim}”
           </p>
         )}
-      </div>
+      </section>
 
       {statusMsg && (
         <Alert role="status" aria-live="polite" className="py-2.5">
@@ -717,52 +717,71 @@ export function CaptionsPanel({
 
       <Separator />
 
-      {/* Caption Lines Header & Controls */}
-      <div className="space-y-2.5">
+      <section className="space-y-3" aria-labelledby="caption-lines-title">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-baseline gap-2">
-            <h3 className="font-heading text-sm font-bold text-foreground">
-              Captions
-            </h3>
-            <span className="font-mono text-xs text-muted-foreground tabular-nums">
-              {sortedCaptions.length} {sortedCaptions.length === 1 ? 'cue' : 'cues'}
-            </span>
+            <h3 id="caption-lines-title" className="workspace-section-label">Caption lines</h3>
+            <span className="text-xs text-muted-foreground tabular-nums">{sortedCaptions.length}</span>
           </div>
-
-          {captions.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-medium text-muted-foreground hidden sm:inline">
-                Per screen
-              </span>
-              <div
-                role="group"
-                aria-label="Words per screen"
-                className="inline-flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5 border border-border"
+          {(canUndo || canRedo || sortedCaptions.length > 0) && (
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={!canUndo}
+                onClick={onUndo}
+                aria-label="Undo caption edit"
+                title="Undo (Ctrl+Z)"
+                className="cursor-pointer px-1.5"
               >
-                {DENSITY_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    aria-pressed={wordsPerPage === opt.value}
-                    onClick={() => handleDensityRegroup(opt.value)}
-                    className={`cap-word-chip px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                      wordsPerPage === opt.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+                <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={!canRedo}
+                onClick={onRedo}
+                aria-label="Redo caption edit"
+                title="Redo (Ctrl+Shift+Z)"
+                className="cursor-pointer px-1.5"
+              >
+                <Redo2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </Button>
             </div>
           )}
         </div>
 
-        {(sortedCaptions.length > 0 || canUndo || canRedo) && (
-          <div className="flex flex-wrap items-center gap-1 border-b border-border/70 pb-2.5">
-            {sortedCaptions.length > 0 && (
-              <>
+        {sortedCaptions.length > 0 && (
+          <details className="workspace-caption-tools">
+            <summary>Caption tools</summary>
+            <div className="space-y-3 px-3 pb-3 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Words per screen</span>
+                <div
+                  role="group"
+                  aria-label="Words per screen"
+                  className="inline-flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5 border border-border"
+                >
+                  {DENSITY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={wordsPerPage === opt.value}
+                      onClick={() => handleDensityRegroup(opt.value)}
+                      className={`cap-word-chip px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                        wordsPerPage === opt.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
                 <Button
                   type="button"
                   variant="secondary"
@@ -795,101 +814,71 @@ export function CaptionsPanel({
                   <Wand2 className="w-3 h-3" aria-hidden="true" />
                   <span>{polishing ? 'Polishing…' : 'AI Polish'}</span>
                 </Button>
-              </>
-            )}
-
-            <div className="ml-auto flex flex-wrap items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                disabled={!canUndo}
-                onClick={onUndo}
-                aria-label="Undo caption edit"
-                title="Undo (Ctrl+Z)"
-                className="cursor-pointer px-1.5"
-              >
-                <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                disabled={!canRedo}
-                onClick={onRedo}
-                aria-label="Redo caption edit"
-                title="Redo (Ctrl+Shift+Z)"
-                className="cursor-pointer px-1.5"
-              >
-                <Redo2 className="w-3.5 h-3.5" aria-hidden="true" />
-              </Button>
-
-              {sortedCaptions.length > 0 && (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => {
-                      onCaptionsChange(shiftCaptions(captions, -0.2, duration || undefined));
-                      setStatusMsg('Shifted all caption timings 0.2s earlier.');
-                    }}
-                    title="Shift all lines 0.2s earlier"
-                    className="font-mono cursor-pointer px-1.5"
-                  >
-                    -0.2s
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => {
-                      onCaptionsChange(shiftCaptions(captions, 0.2, duration || undefined));
-                      setStatusMsg('Shifted all caption timings 0.2s later.');
-                    }}
-                    title="Shift all lines 0.2s later"
-                    className="font-mono cursor-pointer px-1.5"
-                  >
-                    +0.2s
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => void handleCopyTranscript()}
-                    title="Copy plain transcript"
-                    className="cursor-pointer"
-                  >
-                    {copiedTxt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
-                    <span>{copiedTxt ? 'Copied' : '.txt'}</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => void handleCopySrt()}
-                    title="Copy .srt subtitles"
-                    className="cursor-pointer"
-                  >
-                    {copiedSrt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
-                    <span>{copiedSrt ? 'Copied' : '.srt'}</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => {
-                      onCaptionsChange([]);
-                      setStatusMsg('Cleared timeline. Click Undo to restore captions.');
-                    }}
-                    className="cursor-pointer text-muted-foreground hover:text-destructive"
-                  >
-                    Clear
-                  </Button>
-                </>
-              )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => {
+                    onCaptionsChange(shiftCaptions(captions, -0.2, duration || undefined));
+                    setStatusMsg('Shifted all caption timings 0.2s earlier.');
+                  }}
+                  title="Shift all lines 0.2s earlier"
+                  className="font-mono cursor-pointer px-1.5"
+                >
+                  -0.2s
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => {
+                    onCaptionsChange(shiftCaptions(captions, 0.2, duration || undefined));
+                    setStatusMsg('Shifted all caption timings 0.2s later.');
+                  }}
+                  title="Shift all lines 0.2s later"
+                  className="font-mono cursor-pointer px-1.5"
+                >
+                  +0.2s
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => void handleCopyTranscript()}
+                  title="Copy plain transcript"
+                  className="cursor-pointer"
+                >
+                  {copiedTxt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                  <span>{copiedTxt ? 'Copied' : '.txt'}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => void handleCopySrt()}
+                  title="Copy .srt subtitles"
+                  className="cursor-pointer"
+                >
+                  {copiedSrt ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                  <span>{copiedSrt ? 'Copied' : '.srt'}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => {
+                    onCaptionsChange([]);
+                    setStatusMsg('Cleared timeline. Click Undo to restore captions.');
+                  }}
+                  className="cursor-pointer text-muted-foreground hover:text-destructive"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
-          </div>
+          </details>
         )}
 
         {sortedCaptions.length === 0 ? (
@@ -934,13 +923,13 @@ export function CaptionsPanel({
                   <div
                     key={cue.id}
                     data-testid={`caption-row-${index}`}
-                    className={`cue-row-opt px-3 py-2.5 space-y-2 transition-colors ${
+                    className={`workspace-cue cue-row-opt px-3.5 py-3 space-y-2 transition-colors ${
                       isActive ? 'bg-accent/55' : 'hover:bg-accent/20'
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <span className="font-mono font-bold text-foreground tabular-nums w-5">
+                        <span className="font-mono font-medium text-muted-foreground tabular-nums w-5">
                           #{index + 1}
                         </span>
                         {isActive && (
@@ -1185,7 +1174,7 @@ export function CaptionsPanel({
             </Button>
           </div>
         )}
-      </div>
+      </section>
 
       <Dialog open={scriptOpen} onOpenChange={setScriptOpen}>
         <DialogContent className="sm:max-w-md">

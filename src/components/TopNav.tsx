@@ -31,7 +31,7 @@ export function TopNav({ activeView, onNavigate, user, authLoading, savingProjec
   const saveProject = Boolean(user) && activeView === 'studio';
 
   return (
-    <header className="workspace-nav">
+    <header className="workspace-nav glassy-chrome">
       <div className="workspace-nav-inner">
         <a href="/" className="workspace-brand" onClick={(event) => {
           event.preventDefault();
