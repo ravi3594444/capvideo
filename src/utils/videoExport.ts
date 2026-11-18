@@ -184,7 +184,13 @@ export async function exportBurnedInWebM(
   const pageLayout = styleConfig.pageLayout ?? 'replace';
   const useDifference = styleConfig.blendMode === 'difference';
   const containerSpec = getCaptionContainerSpec(styleConfig.style, effectiveEffect, styleConfig.accentColor);
-  const wordGapPx = fontPx * (clampWordSpacing(styleConfig.wordSpacing) + 0.08);
+  const wordGapPx = fontPx * clampWordSpacing(styleConfig.wordSpacing);
+  const lineGap = fontPx * 0.12;
+  const backdropPadX = containerSpec.hasFullLineBackdrop ? fontPx * 0.45 : 0;
+  const backdropPadY = containerSpec.hasFullLineBackdrop ? fontPx * 0.23 : 0;
+  const safeWidth = canvas.width * 0.88;
+  const bottomInset = styleConfig.position === 'pos-third' ? 0.26 : 0.06;
+  const safeHeight = canvas.height * (styleConfig.position === 'pos-third' ? 0.71 : 0.92);
 
   const drawFrame = () => {
     const vw = video.videoWidth || 16;
@@ -209,35 +215,11 @@ export async function exportBurnedInWebM(
           ? findPreviousCaption(captions, cue)
           : null;
 
-      const wrapSize = styleConfig.wordsPerPage === '2' ? 2 : styleConfig.wordsPerPage === '3' ? 3 : styleConfig.wordsPerPage === '4' ? 4 : 4;
+      const wrapSize = Number(styleConfig.wordsPerPage) || 4;
       const headlineIndex = getCaptionHeadlineIndex(cue, words, styleConfig.style, effectiveEffect);
       const lines = effectiveReveal === 'pop'
         ? words[on] ? [[{ word: words[on], index: on }]] : []
         : getCaptionWordRows(words, headlineIndex, wrapSize);
-
-      const lineHeight = fontPx * 1.38;
-      const stackOffset = prevCue ? lineHeight * 0.95 : 0;
-      const posY =
-        styleConfig.position === 'pos-centre'
-          ? canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2
-          : styleConfig.position === 'pos-third'
-            ? canvas.height * 0.68
-            : canvas.height - lines.length * lineHeight - canvas.height * 0.05;
-
-      // Render preceding trailing line faintly above active line when Stack Pages is enabled
-      if (prevCue) {
-        ctx.save();
-        ctx.globalAlpha = 0.56;
-        if (useDifference) ctx.globalCompositeOperation = 'difference';
-        const prevFontPx = Math.round(fontPx * 0.84);
-        ctx.font = `600 ${prevFontPx}px "Manrope", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = 'rgba(0,0,0,0.8)';
-        ctx.shadowBlur = 6;
-        ctx.fillText(prevCue.text.trim(), canvas.width / 2, posY - stackOffset + fontPx * 0.45);
-        ctx.restore();
-      }
 
       const lineSpecs = lines.map((line) =>
         line
@@ -262,41 +244,68 @@ export async function exportBurnedInWebM(
             if (spec.isHidden) return null;
             const px = Math.round(fontPx * spec.scale);
             ctx.font = `${spec.fontStyle} ${spec.fontWeight} ${px}px ${spec.fontCss}`;
-            const widthMeasured = ctx.measureText(spec.displayText).width;
-            return { spec, px, widthMeasured };
+            const textWidth = ctx.measureText(spec.displayText).width;
+            const padding = px * 0.12;
+            return { spec, px, textWidth, padding, width: textWidth + padding * 2 };
           })
           .filter((item): item is NonNullable<typeof item> => item !== null)
       );
 
-      if (containerSpec.hasFullLineBackdrop && containerSpec.backdropColor && lineSpecs.some((r) => r.length > 0)) {
-        const lineTotals = lineSpecs.map(
-          (row) => row.reduce((acc, item) => acc + item.widthMeasured, 0) + Math.max(0, row.length - 1) * wordGapPx
-        );
-        const maxLineW = Math.max(...lineTotals);
-        const padX = fontPx * 0.65;
-        const padY = fontPx * 0.38;
-        const boxW = maxLineW + padX * 2;
-        const boxH = lines.length * lineHeight + padY * 2 - fontPx * 0.2;
-        const boxX = (canvas.width - boxW) / 2;
-        const boxY = posY - padY + fontPx * 0.1;
+      const availableWidth = safeWidth - backdropPadX * 2;
+      const rows = lineSpecs.flatMap(words => {
+        const wrapped: { words: typeof words; width: number; height: number }[] = [];
+        for (const word of words) {
+          let row = wrapped[wrapped.length - 1];
+          if (!row || row.width + wordGapPx + word.width > availableWidth) {
+            row = { words: [], width: 0, height: 0 };
+            wrapped.push(row);
+          }
+          row.width += (row.words.length ? wordGapPx : 0) + word.width;
+          row.height = Math.max(row.height, word.px * 1.24);
+          row.words.push(word);
+        }
+        return wrapped;
+      });
+
+      const boxWidth = Math.max(0, ...rows.map(row => row.width)) + backdropPadX * 2;
+      const rowsHeight = rows.reduce((height, row) => height + row.height, 0) + lineGap * Math.max(0, rows.length - 1);
+      const previousHeight = prevCue ? fontPx * 1.12 : 0;
+      const blockHeight = previousHeight + rowsHeight + backdropPadY * 2;
+      const fit = rows.length ? Math.min(1, safeWidth / Math.max(1, boxWidth), safeHeight / Math.max(1, blockHeight)) : 1;
+      const top = styleConfig.position === 'pos-centre'
+        ? (canvas.height - blockHeight * fit) / 2
+        : canvas.height * (1 - bottomInset) - blockHeight * fit;
+
+      ctx.save();
+      ctx.translate(canvas.width / 2, top);
+      ctx.scale(fit, fit);
+
+      if (prevCue) {
         ctx.save();
-        ctx.fillStyle = containerSpec.backdropColor;
-        ctx.beginPath();
-        ctx.roundRect(boxX, boxY, boxW, boxH, 12);
-        ctx.fill();
+        ctx.globalAlpha = 0.6;
+        if (useDifference) ctx.globalCompositeOperation = 'difference';
+        ctx.font = `600 ${fontPx * 0.76}px "Manrope", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 6;
+        ctx.fillText(prevCue.text.trim(), 0, previousHeight / 2, safeWidth / fit);
         ctx.restore();
       }
 
-      lineSpecs.forEach((row, li) => {
-        if (!row.length) return;
-        const baseY = posY + li * lineHeight + fontPx / 2;
-        const total =
-          row.reduce((a, b) => a + b.widthMeasured, 0) +
-          Math.max(0, row.length - 1) * wordGapPx;
-        let x = (canvas.width - total) / 2;
+      if (rows.length && containerSpec.backdropColor) {
+        ctx.fillStyle = containerSpec.backdropColor;
+        ctx.beginPath();
+        ctx.roundRect(-boxWidth / 2, previousHeight, boxWidth, rowsHeight + backdropPadY * 2, fontPx * 0.32);
+        ctx.fill();
+      }
 
-        row.forEach(({ spec, px, widthMeasured }) => {
-          const y = baseY + spec.translateYEm * fontPx;
+      let rowTop = previousHeight + backdropPadY;
+      for (const row of rows) {
+        let cursor = -row.width / 2;
+        for (const { spec, px, textWidth, padding, width } of row.words) {
+          const x = cursor + padding;
+          const y = rowTop + row.height / 2 + spec.translateYEm * fontPx;
           ctx.save();
           ctx.globalAlpha = spec.opacity;
           if (useDifference) ctx.globalCompositeOperation = 'difference';
@@ -304,7 +313,7 @@ export async function exportBurnedInWebM(
           ctx.textAlign = 'left';
 
           if (spec.rotateDeg !== 0) {
-            const cx = x + widthMeasured / 2;
+            const cx = x + textWidth / 2;
             ctx.translate(cx, y);
             ctx.rotate((spec.rotateDeg * Math.PI) / 180);
             ctx.translate(-cx, -y);
@@ -313,7 +322,7 @@ export async function exportBurnedInWebM(
           if (spec.backgroundColor) {
             ctx.fillStyle = spec.backgroundColor;
             ctx.beginPath();
-            ctx.roundRect(x - 5, y - px * 0.64, widthMeasured + 10, px * 1.28, spec.borderRadiusEm == null ? 6 : px * spec.borderRadiusEm);
+            ctx.roundRect(cursor, y - px * 0.61, width, px * 1.22, px * (spec.borderRadiusEm ?? 0.22));
             ctx.fill();
           }
 
@@ -340,7 +349,7 @@ export async function exportBurnedInWebM(
             ctx.lineJoin = 'round';
             ctx.strokeText(spec.displayText, x, y);
           } else if (spec.shadowMode === 'heavy-outline') {
-            ctx.lineWidth = Math.max(3, px / 5);
+            ctx.lineWidth = Math.max(2, px * 0.095);
             ctx.strokeStyle = '#000000';
             ctx.lineJoin = 'round';
             ctx.strokeText(spec.displayText, x, y);
@@ -356,7 +365,7 @@ export async function exportBurnedInWebM(
           }
 
           if (spec.outlineColor) {
-            ctx.lineWidth = px * 0.135;
+            ctx.lineWidth = px * 0.1;
             ctx.strokeStyle = spec.outlineColor;
             ctx.lineJoin = 'round';
             ctx.strokeText(spec.displayText, x, y);
@@ -366,9 +375,11 @@ export async function exportBurnedInWebM(
           ctx.fillText(spec.displayText, x, y);
           ctx.restore();
 
-          x += widthMeasured + fontPx * 0.32;
-        });
-      });
+          cursor += width + wordGapPx;
+        }
+        rowTop += row.height + lineGap;
+      }
+      ctx.restore();
     }
 
     const len = trimEnd - trimStart;

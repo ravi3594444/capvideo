@@ -370,6 +370,7 @@ export function StylePanel({
           </span>
           <CaptionOverlay
             cue={previewCue}
+            fitHeight
             currentTime={loopElapsedSec}
             config={{ ...displayedConfig, position: 'pos-centre' }}
           />

@@ -307,7 +307,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
   {
     id: 'pack-mrbeast',
     label: 'MrBeast Punch',
-    subtitle: '2–3 words · Flash + Scale punch + heavy stroke',
+    subtitle: 'Short phrases, with one bright word on the beat',
     apply: {
       style: 'st-hormozi',
       fontFamily: 'impact',
@@ -317,7 +317,8 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
       spotlightAuto: true,
       blendMode: 'normal',
       accentColor: '#ffd60a',
-      fontSize: 28,
+      fontSize: 25,
+      wordSpacing: 0.18,
     },
   },
   {
@@ -404,7 +405,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
     id: 'pack-quiet-reveal',
     label: 'Quiet Reveal',
     subtitle: 'Clean white type, one word at a time',
-    apply: { position: 'pos-third', style: 'st-minimal', fontFamily: 'manrope', revealMode: 'build', effect: 'fadeIn', fontSize: 22 },
+    apply: { position: 'pos-third', style: 'st-minimal', fontFamily: 'manrope', revealMode: 'build', effect: 'fadeIn', fontSize: 21, wordSpacing: 0.21 },
   },
   {
     id: 'pack-headline-beat',
@@ -416,7 +417,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
     id: 'pack-comic-beat',
     label: 'Comic Beat',
     subtitle: 'Violet letters with a white outline',
-    apply: { style: 'st-pop', fontFamily: 'impact', revealMode: 'pop', effect: 'flipUp', fontSize: 30, accentColor: '#ad92ff', position: 'pos-third' },
+    apply: { style: 'st-pop', fontFamily: 'impact', revealMode: 'pop', effect: 'flipUp', fontSize: 28, accentColor: '#ad92ff', position: 'pos-third' },
   },
   {
     id: 'pack-amber-stack',
@@ -452,7 +453,7 @@ export const CURATED_PRESET_PACKS: CuratedPresetPack[] = [
     id: 'pack-marker-mix',
     label: 'Marker Mix',
     subtitle: 'Handwritten type with two-tone emphasis',
-    apply: { position: 'pos-third', style: 'st-kinetic-mix', fontFamily: 'manrope', revealMode: 'flash', effect: 'wave', fontSize: 30, accentColor: '#d7fb7d' },
+    apply: { position: 'pos-third', style: 'st-kinetic-mix', fontFamily: 'manrope', revealMode: 'flash', effect: 'wave', fontSize: 26, wordSpacing: 0.19, accentColor: '#d7fb7d' },
   },
   {
     id: 'pack-dispatch',
@@ -1025,10 +1026,10 @@ export function getWordVisualSpec(opts: {
         fontCss: impactFont,
         fontWeight: 700,
         fontStyle: 'normal',
-        color: isOn || isSpotlightKey ? accentColor : '#ffffff',
+        color: isOn ? accentColor : '#ffffff',
         backgroundColor: null,
         opacity: 1,
-        scale: isOn ? 1.22 : 1,
+        scale: isOn ? 1.15 : 1,
         translateYEm: 0,
         rotateDeg: 0,
         shadowMode: 'heavy-outline',
@@ -1144,7 +1145,7 @@ export function getWordVisualSpec(opts: {
     spec.fontStyle = 'normal';
     spec.color = isHeadlineWord ? accentColor : '#ffffff';
     spec.displayText = style !== 'st-minimal' && isHeadlineWord ? word.toUpperCase() : word;
-    spec.scale = isHeadlineWord ? 1.42 : 0.8;
+    spec.scale = isHeadlineWord ? 1.32 : 0.86;
     spec.opacity = 1;
   }
 

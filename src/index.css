@@ -120,12 +120,11 @@
   position: absolute;
   left: 0;
   right: 0;
-  padding: 0 16px;
+  padding-inline: 6%;
   text-align: center;
   font-family: 'Manrope', system-ui, sans-serif;
   font-weight: 800;
-  line-height: 1.24;
-  word-wrap: break-word;
+  line-height: 1.16;
   pointer-events: auto;
 }
 
@@ -133,12 +132,21 @@
 .cap-overlay.pos-third { bottom: 26%; }
 .cap-overlay.pos-centre { top: 50%; transform: translateY(-50%); }
 
+.cap-content {
+  display: block;
+  transform: scale(var(--caption-fit, 1));
+  transform-origin: center bottom;
+}
+
+.pos-centre .cap-content { transform-origin: center; }
+.cap-previous { margin-bottom: .21em; font-size: .76em; }
+
 .cap-rows {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   max-width: 100%;
-  gap: .14em;
+  gap: .12em;
 }
 
 .cap-row {
@@ -148,10 +156,8 @@
   align-items: baseline;
   max-width: 100%;
   column-gap: var(--caption-word-gap, .26em);
-  row-gap: .14em;
+  row-gap: .10em;
 }
-
-.cap-row[data-headline="true"] { padding-block: .14em; }
 
 .cap-overlay .cap-line-backdrop {
   padding: .23em .45em;
@@ -161,8 +167,10 @@
 
 .cap-overlay .w {
   display: inline-block;
-  padding: 2px 3px;
-  border-radius: 5px;
+  padding: .055em .12em;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  border-radius: .22em;
   cursor: pointer;
   transition: transform 0.13s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.13s ease, color 0.13s ease, opacity 0.13s ease;
 }
@@ -175,7 +183,7 @@
 }
 
 .st-cinema .w {
-  padding: 1px 4px;
+  padding: .035em .13em;
   text-shadow: none;
 }
 
@@ -186,7 +194,9 @@
 
 .st-hormozi .w {
   letter-spacing: 0.015em;
-  text-shadow: 3px 0 0 #000, -3px 0 0 #000, 0 3px 0 #000, 0 -3px 0 #000, 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+  -webkit-text-stroke: .095em #000;
+  paint-order: stroke fill;
+  text-shadow: 0 .08em .14em #0009;
 }
 
 .st-classic .w {

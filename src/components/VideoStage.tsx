@@ -338,6 +338,7 @@ export function VideoStage({
                 previousCue={previousCue}
                 currentTime={currentTime}
                 config={styleConfig}
+                fitHeight
                 onEdit={onSelectCueForEdit}
               />
             )}
