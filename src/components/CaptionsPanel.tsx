@@ -565,53 +565,53 @@ export function CaptionsPanel({
     <div className="space-y-4 @container/captions">
       {/* Unified Source & Capture Action Bar */}
       <div className="space-y-2.5">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="w-[148px] shrink-0 space-y-1">
-            <Label htmlFor="caption-lang-trigger" className="text-[11px] font-medium text-muted-foreground">
-              Language
-            </Label>
-            <Select
-              value={language}
-              onValueChange={(val) => {
-                if (val) onLanguageChange(val);
-              }}
-            >
-              <SelectTrigger id="caption-lang-trigger" className="w-full h-9 bg-background text-xs">
-                <SelectValue>
-                  {LANGUAGE_OPTIONS.find((l) => l.value === language)?.label ?? 'English'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {videoFile && (
+          <>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-[148px] shrink-0 space-y-1">
+                <Label htmlFor="caption-lang-trigger" className="text-[11px] font-medium text-muted-foreground">
+                  Language
+                </Label>
+                <Select
+                  value={language}
+                  onValueChange={(val) => {
+                    if (val) onLanguageChange(val);
+                  }}
+                >
+                  <SelectTrigger id="caption-lang-trigger" className="w-full h-9 bg-background text-xs">
+                    <SelectValue>
+                      {LANGUAGE_OPTIONS.find((l) => l.value === language)?.label ?? 'English'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <Button
-            type="button"
-            size="default"
-            disabled={generating}
-            onClick={handleAutoGenerate}
-            className="h-9 flex-1 min-w-[185px] font-semibold cursor-pointer"
-          >
-            <Wand2 className="w-4 h-4" aria-hidden="true" />
-            <span>
-              {generating
-                ? 'Transcribing speech…'
-                : videoFile
-                  ? 'Auto-caption video'
-                  : 'Choose a video to auto-caption'}
-            </span>
-          </Button>
-        </div>
+              <Button
+                type="button"
+                size="default"
+                disabled={generating}
+                onClick={handleAutoGenerate}
+                className="h-9 flex-1 min-w-[185px] font-semibold cursor-pointer"
+              >
+                <Wand2 className="w-4 h-4" aria-hidden="true" />
+                <span>
+                  {generating ? 'Transcribing speech…' : 'Auto-caption video'}
+                </span>
+              </Button>
+            </div>
 
-        <p className="text-xs text-muted-foreground">
-          Auto-caption sends your clip to Deepgram. Editing and export happen on your device.
-        </p>
+            <p className="text-xs text-muted-foreground">
+              Auto-caption sends your clip to Deepgram. Editing and export happen on your device.
+            </p>
+          </>
+        )}
 
         <div className="flex flex-wrap items-center gap-1.5">
           <Button
@@ -636,18 +636,20 @@ export function CaptionsPanel({
             <span>Import .srt</span>
           </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={handleAddRow}
-            className="cursor-pointer font-medium"
-          >
-            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Add line</span>
-          </Button>
+          {captions.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={handleAddRow}
+              className="cursor-pointer font-medium"
+            >
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Add line</span>
+            </Button>
+          )}
 
-          {SpeechRec && (
+          {hasVideo && SpeechRec && (
             !listening ? (
               <Button
                 type="button"
@@ -671,8 +673,6 @@ export function CaptionsPanel({
               </Button>
             )
           )}
-
-
         </div>
 
         <input
@@ -729,32 +729,34 @@ export function CaptionsPanel({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-muted-foreground hidden sm:inline">
-              Per screen
-            </span>
-            <div
-              role="group"
-              aria-label="Words per screen"
-              className="inline-flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5 border border-border"
-            >
-              {DENSITY_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  aria-pressed={wordsPerPage === opt.value}
-                  onClick={() => handleDensityRegroup(opt.value)}
-                  className={`cap-word-chip px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                    wordsPerPage === opt.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+          {captions.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground hidden sm:inline">
+                Per screen
+              </span>
+              <div
+                role="group"
+                aria-label="Words per screen"
+                className="inline-flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5 border border-border"
+              >
+                {DENSITY_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={wordsPerPage === opt.value}
+                    onClick={() => handleDensityRegroup(opt.value)}
+                    className={`cap-word-chip px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                      wordsPerPage === opt.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {(sortedCaptions.length > 0 || canUndo || canRedo) && (

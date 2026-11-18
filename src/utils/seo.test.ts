@@ -8,7 +8,7 @@ import {
 } from './seo';
 
 test('VIEW_SEO_METADATA enforces recommended title and meta description length budgets', () => {
-  const views: SeoViewId[] = ['studio', 'projects', 'deploy', 'guide'];
+  const views: SeoViewId[] = ['landing', 'studio', 'projects', 'deploy', 'guide'];
   for (const view of views) {
     const meta = getViewSeoMetadata(view);
     assert.ok(
@@ -20,7 +20,7 @@ test('VIEW_SEO_METADATA enforces recommended title and meta description length b
       `Expected ${view} description length (110-165), got ${meta.description.length}`
     );
   }
-  assert.equal(Object.keys(VIEW_SEO_METADATA).length, 4);
+  assert.equal(Object.keys(VIEW_SEO_METADATA).length, views.length);
 });
 
 test('buildCanonicalUrl resolves clean canonical links per view', () => {

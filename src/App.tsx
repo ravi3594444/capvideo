@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Button as AstryxButton } from '@astryxdesign/core/Button';
+import { Tab, TabList } from '@astryxdesign/core/TabList';
+import { Theme } from '@astryxdesign/core/theme';
+import { neutralTheme } from '@astryxdesign/theme-neutral';
 import {
   AlertCircle,
   Captions,
@@ -14,14 +18,13 @@ import {
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Toaster } from '@/components/ui/sonner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { TopNav, type AppView } from './components/TopNav';
+import { TopNav, VIEW_HREFS, type AppView } from './components/TopNav';
+import { LandingPage } from './components/LandingPage';
 import { VideoStage } from './components/VideoStage';
 import { StudioTimelineBar } from './components/StudioTimelineBar';
 import { CaptionsPanel, type ServerCapabilities } from './components/CaptionsPanel';
@@ -80,12 +83,28 @@ const INSPECTOR_TABS: { id: InspectorTab; label: string; Icon: LucideIcon }[] = 
 ];
 
 function getInitialView(): AppView {
-  if (typeof window === 'undefined') return 'studio';
+  if (typeof window === 'undefined') return 'landing';
   const hash = window.location.hash.replace(/^#/, '');
   if (hash === 'projects' || hash === 'deploy' || hash === 'guide' || hash === 'studio') {
     return hash;
   }
-  return 'studio';
+  return window.location.pathname === '/studio' ? 'studio' : 'landing';
+}
+
+function InspectorPanel({ tab, activeTab, children }: { tab: InspectorTab; activeTab: InspectorTab; children: ReactNode }) {
+  const active = tab === activeTab;
+  return (
+    <section
+      role="tabpanel"
+      id={`inspector-panel-${tab}`}
+      aria-labelledby={`inspector-tab-${tab}`}
+      hidden={!active}
+      tabIndex={active ? 0 : -1}
+      className="workspace-panel"
+    >
+      {active && children}
+    </section>
+  );
 }
 
 function StudioApp() {
@@ -101,6 +120,21 @@ function StudioApp() {
   const inspectorRef = useRef<HTMLDivElement | null>(null);
   const videoPickerRef = useRef<HTMLInputElement | null>(null);
   const [darkMode, setDarkMode] = useState(true);
+
+  const navigate = (view: AppView) => {
+    const href = VIEW_HREFS[view];
+    if (window.location.pathname + window.location.hash !== href) {
+      window.history.pushState(null, '', href);
+    }
+    setActiveView(view);
+    window.scrollTo(0, 0);
+  };
+
+  useEffect(() => {
+    const syncView = () => setActiveView(getInitialView());
+    window.addEventListener('popstate', syncView);
+    return () => window.removeEventListener('popstate', syncView);
+  }, []);
 
   // Project & local-draft state
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -118,7 +152,7 @@ function StudioApp() {
     label: string;
   } | null>(null);
   const [captionHistory, setCaptionHistory] = useState<CaptionHistoryState>(() =>
-    createCaptionHistory(initialDraft ? initialDraft.captions : createSampleCaptions())
+    createCaptionHistory(initialDraft?.captions ?? [])
   );
 
   const stageStyleConfig = previewStyleState?.config ?? styleConfig;
@@ -367,7 +401,7 @@ function StudioApp() {
         { id: 'sample_2', start: 0.7, end: 1.3, text: 'Dynamic captions on your clip' },
         { id: 'sample_3', start: 1.3, end: 2.0, text: 'Tap any word to fix spelling' },
       ]);
-      toast.success('Sample clip loaded. Press Play clip to watch word-by-word animation.');
+      toast.success('Sample clip loaded. Press Play to watch word-by-word animation.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to generate sample clip.');
     } finally {
@@ -584,7 +618,7 @@ function StudioApp() {
       setTrimStart(proj.trimStart);
       setTrimEnd(proj.trimEnd);
       resetCaptionHistory(loadedCues);
-      setActiveView('studio');
+      navigate('studio');
       toast.success(
         `Loaded “${proj.title}” (${loadedCues.length} captions). Re-attach video file to preview playback.`
       );
@@ -599,7 +633,7 @@ function StudioApp() {
     setAspect('r916');
     setStyleConfig(DEFAULT_STYLE_CONFIG);
     resetCaptionHistory([]);
-    setActiveView('studio');
+    navigate('studio');
   };
 
   const handleResetDemo = () => {
@@ -615,398 +649,325 @@ function StudioApp() {
   };
 
   return (
-    <div className="min-h-screen studio-backdrop text-foreground flex flex-col">
-      <TopNav
-        activeView={activeView}
-        onNavigate={setActiveView}
-        user={user}
-        authLoading={authLoading}
-        savingProject={savingProject}
-        onPrimaryAction={() => void handleSaveProject()}
-      />
+    <Theme theme={neutralTheme} mode={darkMode ? 'dark' : 'light'}>
+      <div className="caption-app text-foreground">
+        <TopNav
+          activeView={activeView}
+          onNavigate={navigate}
+          user={user}
+          authLoading={authLoading}
+          savingProject={savingProject}
+          onPrimaryAction={() => void handleSaveProject()}
+        />
 
-      {authError && (
-        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 pt-4">
-          <Alert variant="destructive">
-            <AlertCircle className="w-4 h-4" aria-hidden="true" />
-            <AlertDescription className="flex items-center justify-between gap-3 text-xs">
-              <span>{authError}</span>
-              <Button
-                type="button"
-                variant="link"
-                size="xs"
-                onClick={clearAuthError}
-                className="p-0 h-auto cursor-pointer"
-              >
-                Dismiss
-              </Button>
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      <main className="flex-1">
-        {activeView === 'studio' && (
-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-4 space-y-4 max-lg:pb-[calc(5rem+env(safe-area-inset-bottom))]">
-            <h1 className="sr-only">Caption Lite Video Caption Studio</h1>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/80">
-              <div className="flex-1 min-w-[200px] max-w-md flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                <Label htmlFor="project-title-input" className="sr-only">
-                  Project title
-                </Label>
-                <Input
-                  id="project-title-input"
-                  type="text"
-                  maxLength={120}
-                  value={projectTitle}
-                  onChange={(e) => setProjectTitle(e.target.value)}
-                  className="h-9 bg-background/60 font-display text-sm font-bold tracking-tight sm:w-56"
-                />
-                <p className="font-mono text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
-                  {aspect === 'r916' ? '9:16' : aspect === 'r11' ? '1:1' : '16:9'} ·{' '}
-                  {captions.length} {captions.length === 1 ? 'cue' : 'cues'} ·{' '}
-                  {user ? `Synced (${user.displayName || user.email})` : 'Local draft'}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5">
+        {authError && (
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 pt-4">
+            <Alert variant="destructive">
+              <AlertCircle className="w-4 h-4" aria-hidden="true" />
+              <AlertDescription className="flex items-center justify-between gap-3 text-xs">
+                <span>{authError}</span>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleResetDemo}
-                  aria-label="Start over with the sample captions"
-                  className="cursor-pointer whitespace-nowrap shrink-0 font-medium text-muted-foreground hover:text-foreground"
+                  variant="link"
+                  size="xs"
+                  onClick={clearAuthError}
+                  className="p-0 h-auto cursor-pointer"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span className="hidden sm:inline">Start over</span>
+                  Dismiss
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDarkMode((prev) => !prev)}
-                  aria-label={darkMode ? 'Switch to light studio mode' : 'Switch to dark studio mode'}
-                  className="bg-card cursor-pointer whitespace-nowrap shrink-0 font-medium"
-                >
-                  {darkMode ? (
-                    <>
-                      <Sun className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span className="hidden sm:inline">Light</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span className="hidden sm:inline">Dark</span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-              <div className="lg:col-span-5 lg:sticky lg:top-20">
-                <VideoStage
-                  videoRef={videoRef}
-                  videoPickerRef={videoPickerRef}
-                  videoUrl={videoUrl}
-                  fileInfo={fileInfo}
-                  duration={duration}
-                  currentTime={currentTime}
-                  isPlaying={isPlaying}
-                  loopClip={loopClip}
-                  trimStart={trimStart}
-                  trimEnd={trimEnd}
-                  aspect={aspect}
-                  captions={captions}
-                  styleConfig={stageStyleConfig}
-                  previewLabel={previewStyleState?.label ?? null}
-                  improveAudio={improveAudio}
-                  noiseStrength={noiseStrength}
-                  audioMeterPct={audioMeterPct}
-                  audioStatus={audioStatus}
-                  voiceoverActive={Boolean(voiceoverEnabled && voiceoverUrl)}
-                  replaceOriginalAudio={replaceOriginalAudio}
-                  editingCue={editingCue}
-                  loadingSample={loadingSample}
-                  onFileSelected={handleFileSelected}
-                  onSrtFileDropped={(file) => void handleSrtFileDropped(file)}
-                  onDropError={(msg) => toast.error(msg)}
-                  onLoadSampleClip={() => void handleLoadSampleClip()}
-                  onTogglePlay={() => void handleTogglePlay()}
-                  onToggleLoop={() => setLoopClip((prev) => !prev)}
-                  onAspectChange={setAspect}
-                  onTrimChange={handleTrimChange}
-                  onSeekTo={(time) => handleSeekTo(time, false)}
-                  onToggleImproveAudio={() => void handleToggleImproveAudio()}
-                  onNoiseStrengthChange={handleNoiseStrengthChange}
-                  onSelectCueForEdit={(cue) => {
-                    videoRef.current?.pause();
-                    voiceAudioRef.current?.pause();
-                    setIsPlaying(false);
-                    setEditingCue(cue);
-                  }}
-                  onSaveEditCue={(cueId, nextText) => {
-                    updateCaptions(
-                      captions.map((c) => (c.id === cueId ? { ...c, text: nextText } : c))
-                    );
-                    setEditingCue(null);
-                  }}
-                  onToggleCueKeyWord={(cueId, rawWord) => {
-                    const updated = captions.map((c) =>
-                      c.id === cueId
-                        ? toggleCueKeyWord(c, rawWord, styleConfig.spotlightAuto ?? true)
-                        : c
-                    );
-                    updateCaptions(updated);
-                    const nextEditing = updated.find((c) => c.id === cueId) ?? null;
-                    setEditingCue(nextEditing);
-                  }}
-                  onCancelEditCue={() => setEditingCue(null)}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onTimeUpdate={handleTimeUpdate}
-                  onSeeked={() => {
-                    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
-                  }}
-                  onPause={() => {
-                    voiceAudioRef.current?.pause();
-                    setIsPlaying(false);
-                  }}
-                  onEnded={handleEnded}
-                />
-                <audio
-                  ref={voiceAudioRef}
-                  src={voiceoverUrl ?? undefined}
-                  preload="metadata"
-                  className="hidden"
-                />
+        <main>
+          {activeView === 'landing' && <LandingPage onOpenStudio={() => navigate('studio')} />}
+          {activeView === 'studio' && (
+            <div className="workspace-studio">
+              <div className="workspace-project-bar">
+                <div className="workspace-project-name">
+                  <h1 className="sr-only">Caption Lite Studio</h1>
+                  <Label htmlFor="project-title-input" className="sr-only">Project title</Label>
+                  <Input
+                    id="project-title-input"
+                    type="text"
+                    maxLength={120}
+                    value={projectTitle}
+                    onChange={(event) => setProjectTitle(event.target.value)}
+                    className="workspace-title-input"
+                  />
+                  <p className="workspace-draft">
+                    {activeProjectId ? 'Cloud project' : 'Local draft'}
+                  </p>
+                </div>
+                <div className="workspace-actions">
+                  <AstryxButton size="md" variant="secondary" isIconOnly label="Start over with the sample captions"
+                    icon={<RotateCcw size={17} />} onClick={handleResetDemo} />
+                  <AstryxButton size="md" variant="secondary" isIconOnly
+                    label={darkMode ? 'Switch to light studio mode' : 'Switch to dark studio mode'}
+                    icon={darkMode ? <Sun size={17} /> : <Moon size={17} />} onClick={() => setDarkMode((previous) => !previous)} />
+                  <AstryxButton size="md" variant="primary" label="Export" icon={<Download size={17} />}
+                    onClick={() => handleInspectorTabChange('export')} className="workspace-export" />
+                </div>
               </div>
 
-              <Card ref={inspectorRef} className="lg:col-span-7 overflow-visible scroll-mt-4 md:scroll-mt-20">
-                <CardContent className="pt-0">
-                  <Tabs
-                    value={inspectorTab}
-                    onValueChange={(val) => handleInspectorTabChange(val as InspectorTab)}
-                    className="space-y-4"
-                  >
-                    <TabsList className="hidden lg:grid w-full h-10 grid-cols-5">
-                      {INSPECTOR_TABS.map(({ id, label }) => (
-                        <TabsTrigger
-                          key={id}
-                          value={id}
-                          className="text-xs cursor-pointer whitespace-nowrap"
-                        >
-                          {label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-
-                    <TabsContent value="captions">
-                      <CaptionsPanel
-                        videoFile={videoFile}
-                        videoRef={videoRef}
+              <div className="workspace-grid">
+                <div className="workspace-preview">
+                  <VideoStage
+                    videoRef={videoRef}
+                    videoPickerRef={videoPickerRef}
+                    timeline={
+                      <StudioTimelineBar
+                        videoLoaded={Boolean(videoUrl)}
                         duration={duration}
                         currentTime={currentTime}
                         trimStart={trimStart}
                         trimEnd={trimEnd}
-                        language={language}
-                        wordsPerPage={styleConfig.wordsPerPage ?? 'auto'}
-                        spotlightAuto={styleConfig.spotlightAuto ?? true}
+                        isPlaying={isPlaying}
+                        loopClip={loopClip}
                         captions={captions}
-                        capabilities={capabilities}
-                        canUndo={canUndo}
-                        canRedo={canRedo}
-                        onUndo={handleUndo}
-                        onRedo={handleRedo}
-                        onLanguageChange={setLanguage}
-                        onWordsPerPageChange={(wordsPerPage) =>
-                          setStyleConfig((prev) => ({ ...prev, wordsPerPage }))
-                        }
-                        onCaptionsChange={updateCaptions}
-                        onSeekTo={handleSeekTo}
-                        onOpenDeployGuide={() => setActiveView('deploy')}
-                        onRequestVideo={() => videoPickerRef.current?.click()}
-                      />
-                    </TabsContent>
-
-                    <TabsContent value="style">
-                      <StylePanel
-                        videoRef={videoRef}
-                        videoUrl={videoUrl}
-                        styleConfig={styleConfig}
-                        previewConfig={previewStyleState?.config ?? null}
                         previewLabel={previewStyleState?.label ?? null}
-                        sampleCue={findActiveCaption(captions, currentTime) ?? activeSampleCue}
-                        presets={cloudPresets}
-                        signedIn={Boolean(user)}
-                        onChange={setStyleConfig}
-                        onPreviewChange={(next, label) => {
-                          if (!next) {
-                            setPreviewStyleState(null);
-                          } else {
-                            setPreviewStyleState({ config: next, label: label ?? 'Preview' });
-                          }
+                        onTogglePlay={() => void handleTogglePlay()}
+                        onToggleLoop={() => setLoopClip((prev) => !prev)}
+                        onSeekTo={handleSeekTo}
+                        onEditActiveCue={(cue) => {
+                          videoRef.current?.pause();
+                          voiceAudioRef.current?.pause();
+                          setIsPlaying(false);
+                          setEditingCue(cue);
                         }}
-                        onSavePreset={async (name) => {
-                          if (!user) return;
-                          await saveStylePresetToFirestore(user.uid, {
-                            name,
-                            style: styleConfig.style,
-                            fontFamily: styleConfig.fontFamily,
-                            position: styleConfig.position,
-                            accentColor: styleConfig.accentColor,
-                            fontSize: styleConfig.fontSize,
-                            wordSpacing: clampWordSpacing(styleConfig.wordSpacing),
-                            revealMode: styleConfig.revealMode,
-                            effect: styleConfig.effect,
-                            wordsPerPage: styleConfig.wordsPerPage,
-                            pageLayout: styleConfig.pageLayout,
-                            spotlightAuto: styleConfig.spotlightAuto,
-                            blendMode: styleConfig.blendMode,
-                          });
-                        }}
-                        onDeletePreset={async (presetId) => {
-                          if (!user) return;
-                          await deleteStylePresetFromFirestore(user.uid, presetId);
-                        }}
-                        onSignInPrompt={() => void signInWithGoogle()}
                       />
-                    </TabsContent>
+                    }
+                    videoUrl={videoUrl}
+                    fileInfo={fileInfo}
+                    duration={duration}
+                    currentTime={currentTime}
+                    trimStart={trimStart}
+                    trimEnd={trimEnd}
+                    aspect={aspect}
+                    captions={captions}
+                    styleConfig={stageStyleConfig}
+                    previewLabel={previewStyleState?.label ?? null}
+                    improveAudio={improveAudio}
+                    noiseStrength={noiseStrength}
+                    audioMeterPct={audioMeterPct}
+                    audioStatus={audioStatus}
+                    voiceoverActive={Boolean(voiceoverEnabled && voiceoverUrl)}
+                    replaceOriginalAudio={replaceOriginalAudio}
+                    editingCue={editingCue}
+                    loadingSample={loadingSample}
+                    onFileSelected={handleFileSelected}
+                    onSrtFileDropped={(file) => void handleSrtFileDropped(file)}
+                    onDropError={(msg) => toast.error(msg)}
+                    onLoadSampleClip={() => void handleLoadSampleClip()}
+                    onAspectChange={setAspect}
+                    onTrimChange={handleTrimChange}
+                    onToggleImproveAudio={() => void handleToggleImproveAudio()}
+                    onNoiseStrengthChange={handleNoiseStrengthChange}
+                    onSelectCueForEdit={(cue) => {
+                      videoRef.current?.pause();
+                      voiceAudioRef.current?.pause();
+                      setIsPlaying(false);
+                      setEditingCue(cue);
+                    }}
+                    onSaveEditCue={(cueId, nextText) => {
+                      updateCaptions(
+                        captions.map((c) => (c.id === cueId ? { ...c, text: nextText } : c))
+                      );
+                      setEditingCue(null);
+                    }}
+                    onToggleCueKeyWord={(cueId, rawWord) => {
+                      const updated = captions.map((c) =>
+                        c.id === cueId
+                          ? toggleCueKeyWord(c, rawWord, styleConfig.spotlightAuto ?? true)
+                          : c
+                      );
+                      updateCaptions(updated);
+                      const nextEditing = updated.find((c) => c.id === cueId) ?? null;
+                      setEditingCue(nextEditing);
+                    }}
+                    onCancelEditCue={() => setEditingCue(null)}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    onTimeUpdate={handleTimeUpdate}
+                    onSeeked={() => {
+                      if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+                    }}
+                    onPause={() => {
+                      voiceAudioRef.current?.pause();
+                      setIsPlaying(false);
+                    }}
+                    onEnded={handleEnded}
+                  />
+                  <audio
+                    ref={voiceAudioRef}
+                    src={voiceoverUrl ?? undefined}
+                    preload="metadata"
+                    className="hidden"
+                  />
+                </div>
 
-                    <TabsContent value="reference">
-                      <ReferenceMatchPanel
-                        styleConfig={styleConfig}
-                        onApplyLook={setStyleConfig}
-                      />
-                    </TabsContent>
+                <div ref={inspectorRef} className="workspace-inspector">
+                  <TabList
+                    value={inspectorTab}
+                    onChange={(value) => handleInspectorTabChange(value as InspectorTab)}
+                    role="tablist"
+                    aria-label="Editing tools"
+                    layout="fill"
+                    overflow="visible"
+                    className="workspace-tabs"
+                  >
+                    {INSPECTOR_TABS.map(({ id, label, Icon }) => (
+                      <Tab key={id} id={`inspector-tab-${id}`} value={id} label={label}
+                        panelId={`inspector-panel-${id}`} icon={<Icon size={16} aria-hidden="true" />}
+                        className="workspace-tab" />
+                    ))}
+                  </TabList>
 
-                    <TabsContent value="ai">
-                      <AIRefinePanel
-                        captions={captions}
-                        capabilities={capabilities}
-                        voiceoverUrl={voiceoverUrl}
-                        voiceoverEnabled={voiceoverEnabled}
-                        replaceOriginalAudio={replaceOriginalAudio}
-                        onVoiceoverGenerated={handleVoiceoverGenerated}
-                        onToggleVoiceoverEnabled={setVoiceoverEnabled}
-                        onChangeReplaceOriginalAudio={setReplaceOriginalAudio}
-                        onCaptionsChange={updateCaptions}
-                        onOpenDeployGuide={() => setActiveView('deploy')}
-                      />
-                    </TabsContent>
+                  <InspectorPanel tab="captions" activeTab={inspectorTab}>
+                    <CaptionsPanel
+                      videoFile={videoFile}
+                      videoRef={videoRef}
+                      duration={duration}
+                      currentTime={currentTime}
+                      trimStart={trimStart}
+                      trimEnd={trimEnd}
+                      language={language}
+                      wordsPerPage={styleConfig.wordsPerPage ?? 'auto'}
+                      spotlightAuto={styleConfig.spotlightAuto ?? true}
+                      captions={captions}
+                      capabilities={capabilities}
+                      canUndo={canUndo}
+                      canRedo={canRedo}
+                      onUndo={handleUndo}
+                      onRedo={handleRedo}
+                      onLanguageChange={setLanguage}
+                      onWordsPerPageChange={(wordsPerPage) =>
+                        setStyleConfig((prev) => ({ ...prev, wordsPerPage }))
+                      }
+                      onCaptionsChange={updateCaptions}
+                      onSeekTo={handleSeekTo}
+                      onOpenDeployGuide={() => navigate('deploy')}
+                      onRequestVideo={() => videoPickerRef.current?.click()}
+                    />
+                  </InspectorPanel>
 
-                    <TabsContent value="export">
-                      <ExportPanel
-                        videoRef={videoRef}
-                        videoLoaded={Boolean(videoUrl)}
-                        captions={captions}
-                        aspect={aspect}
-                        styleConfig={styleConfig}
-                        trimStart={trimStart}
-                        trimEnd={trimEnd}
-                        improveAudio={improveAudio}
-                        noiseStrength={noiseStrength}
-                        audioGraph={audioGraphRef.current}
-                        voiceoverBlob={voiceoverBlob}
-                        voiceoverEnabled={voiceoverEnabled}
-                        replaceOriginalAudio={replaceOriginalAudio}
-                        projectTitle={projectTitle}
-                      />
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
+                  <InspectorPanel tab="style" activeTab={inspectorTab}>
+                    <StylePanel
+                      videoRef={videoRef}
+                      videoUrl={videoUrl}
+                      styleConfig={styleConfig}
+                      previewConfig={previewStyleState?.config ?? null}
+                      previewLabel={previewStyleState?.label ?? null}
+                      sampleCue={findActiveCaption(captions, currentTime) ?? activeSampleCue}
+                      presets={cloudPresets}
+                      signedIn={Boolean(user)}
+                      onChange={setStyleConfig}
+                      onPreviewChange={(next, label) => {
+                        if (!next) {
+                          setPreviewStyleState(null);
+                        } else {
+                          setPreviewStyleState({ config: next, label: label ?? 'Preview' });
+                        }
+                      }}
+                      onSavePreset={async (name) => {
+                        if (!user) return;
+                        await saveStylePresetToFirestore(user.uid, {
+                          name,
+                          style: styleConfig.style,
+                          fontFamily: styleConfig.fontFamily,
+                          position: styleConfig.position,
+                          accentColor: styleConfig.accentColor,
+                          fontSize: styleConfig.fontSize,
+                          wordSpacing: clampWordSpacing(styleConfig.wordSpacing),
+                          revealMode: styleConfig.revealMode,
+                          effect: styleConfig.effect,
+                          wordsPerPage: styleConfig.wordsPerPage,
+                          pageLayout: styleConfig.pageLayout,
+                          spotlightAuto: styleConfig.spotlightAuto,
+                          blendMode: styleConfig.blendMode,
+                        });
+                      }}
+                      onDeletePreset={async (presetId) => {
+                        if (!user) return;
+                        await deleteStylePresetFromFirestore(user.uid, presetId);
+                      }}
+                      onSignInPrompt={() => void signInWithGoogle()}
+                    />
+                  </InspectorPanel>
+
+                  <InspectorPanel tab="reference" activeTab={inspectorTab}>
+                    <ReferenceMatchPanel
+                      styleConfig={styleConfig}
+                      onApplyLook={setStyleConfig}
+                    />
+                  </InspectorPanel>
+
+                  <InspectorPanel tab="ai" activeTab={inspectorTab}>
+                    <AIRefinePanel
+                      captions={captions}
+                      capabilities={capabilities}
+                      voiceoverUrl={voiceoverUrl}
+                      voiceoverEnabled={voiceoverEnabled}
+                      replaceOriginalAudio={replaceOriginalAudio}
+                      onVoiceoverGenerated={handleVoiceoverGenerated}
+                      onToggleVoiceoverEnabled={setVoiceoverEnabled}
+                      onChangeReplaceOriginalAudio={setReplaceOriginalAudio}
+                      onCaptionsChange={updateCaptions}
+                      onOpenDeployGuide={() => navigate('deploy')}
+                    />
+                  </InspectorPanel>
+
+                  <InspectorPanel tab="export" activeTab={inspectorTab}>
+                    <ExportPanel
+                      videoRef={videoRef}
+                      videoLoaded={Boolean(videoUrl)}
+                      captions={captions}
+                      aspect={aspect}
+                      styleConfig={styleConfig}
+                      trimStart={trimStart}
+                      trimEnd={trimEnd}
+                      improveAudio={improveAudio}
+                      noiseStrength={noiseStrength}
+                      audioGraph={audioGraphRef.current}
+                      voiceoverBlob={voiceoverBlob}
+                      voiceoverEnabled={voiceoverEnabled}
+                      replaceOriginalAudio={replaceOriginalAudio}
+                      projectTitle={projectTitle}
+                    />
+                  </InspectorPanel>
+                </div>
+              </div>
             </div>
+          )}
 
-            <StudioTimelineBar
-              videoLoaded={Boolean(videoUrl)}
-              duration={duration}
-              currentTime={currentTime}
-              trimStart={trimStart}
-              trimEnd={trimEnd}
-              isPlaying={isPlaying}
-              loopClip={loopClip}
-              captions={captions}
-              styleConfig={stageStyleConfig}
-              previewLabel={previewStyleState?.label ?? null}
-              onTogglePlay={() => void handleTogglePlay()}
-              onToggleLoop={() => setLoopClip((prev) => !prev)}
-              onSeekTo={handleSeekTo}
-              onEditActiveCue={(cue) => {
-                videoRef.current?.pause();
-                voiceAudioRef.current?.pause();
-                setIsPlaying(false);
-                setEditingCue(cue);
+          {activeView === 'projects' && (
+            <ProjectsDashboard
+              user={user}
+              authLoading={authLoading}
+              projects={cloudProjects}
+              projectsLoading={projectsLoading}
+              presets={cloudPresets}
+              activeProjectId={activeProjectId}
+              onSignIn={() => void signInWithGoogle()}
+              onSignOut={() => void signOutUser()}
+              onNewProject={handleNewProject}
+              onOpenProject={(proj) => void handleOpenCloudProject(proj)}
+              onDeleteProject={async (projectId) => {
+                if (!user) return;
+                await deleteProjectFromFirestore(projectId, user.uid);
+                if (activeProjectId === projectId) setActiveProjectId(null);
               }}
             />
+          )}
 
-            <nav
-              aria-label="Studio sections"
-              className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
-            >
-              <div className="mx-auto flex max-w-xl">
-                {INSPECTOR_TABS.map(({ id, label, Icon }) => {
-                  const active = inspectorTab === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      aria-current={active ? 'true' : undefined}
-                      onClick={() => handleInspectorTabChange(id)}
-                      className={`relative flex flex-1 min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer transition-colors ${
-                        active
-                          ? 'text-foreground font-semibold'
-                          : 'text-muted-foreground font-medium'
-                      }`}
-                    >
-                      {active && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-primary"
-                        />
-                      )}
-                      <Icon className="w-5 h-5" aria-hidden="true" />
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </nav>
-          </div>
-        )}
+          {activeView === 'deploy' && <DeployGuideView capabilities={capabilities} />}
 
-        {activeView === 'projects' && (
-          <ProjectsDashboard
-            user={user}
-            authLoading={authLoading}
-            projects={cloudProjects}
-            projectsLoading={projectsLoading}
-            presets={cloudPresets}
-            activeProjectId={activeProjectId}
-            onSignIn={() => void signInWithGoogle()}
-            onSignOut={() => void signOutUser()}
-            onNewProject={handleNewProject}
-            onOpenProject={(proj) => void handleOpenCloudProject(proj)}
-            onDeleteProject={async (projectId) => {
-              if (!user) return;
-              await deleteProjectFromFirestore(projectId, user.uid);
-              if (activeProjectId === projectId) setActiveProjectId(null);
-            }}
-          />
-        )}
+          {activeView === 'guide' && <HowItWorksView onOpenStudio={() => navigate('studio')} />}
+        </main>
 
-        {activeView === 'deploy' && <DeployGuideView capabilities={capabilities} />}
-
-        {activeView === 'guide' && <HowItWorksView onOpenStudio={() => setActiveView('studio')} />}
-      </main>
-
-      <footer className="border-t border-border/70 bg-card/55 backdrop-blur-lg py-4 px-4 text-center text-xs text-muted-foreground max-lg:pb-[calc(4.75rem+env(safe-area-inset-bottom))]">
-        <span className="font-display font-semibold text-foreground">Caption Lite</span> · Deepgram Nova-2 &amp; Inception Mercury 3 · Firebase Auth &amp; Firestore sync
-      </footer>
-
-      <Toaster theme={darkMode ? 'dark' : 'light'} position={isCompact ? 'top-center' : 'bottom-right'} />
-    </div>
+        <Toaster theme={darkMode ? 'dark' : 'light'} position={isCompact ? 'top-center' : 'bottom-right'} />
+      </div>
+    </Theme>
   );
 }
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Eye, Film, Mic2, Pause, PencilLine, Play, Repeat, Sparkles, Upload, Volume2 } from 'lucide-react';
+import { Camera, Eye, Film, Mic2, PencilLine, Sparkles, Upload, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -43,8 +43,7 @@ interface VideoStageProps {
   fileInfo: string;
   duration: number;
   currentTime: number;
-  isPlaying: boolean;
-  loopClip: boolean;
+  timeline: React.ReactNode;
   trimStart: number;
   trimEnd: number;
   aspect: AspectRatio;
@@ -63,11 +62,8 @@ interface VideoStageProps {
   onSrtFileDropped: (file: File) => void;
   onDropError: (message: string) => void;
   onLoadSampleClip: () => void;
-  onTogglePlay: () => void;
-  onToggleLoop: () => void;
   onAspectChange: (aspect: AspectRatio) => void;
   onTrimChange: (which: 'start' | 'end', value: number) => void;
-  onSeekTo: (time: number) => void;
   onToggleImproveAudio: () => void;
   onNoiseStrengthChange: (strength: NoiseCleanStrength) => void;
   onSelectCueForEdit: (cue: CaptionCue) => void;
@@ -88,8 +84,7 @@ export function VideoStage({
   fileInfo,
   duration,
   currentTime,
-  isPlaying,
-  loopClip,
+  timeline,
   trimStart,
   trimEnd,
   aspect,
@@ -108,11 +103,8 @@ export function VideoStage({
   onSrtFileDropped,
   onDropError,
   onLoadSampleClip,
-  onTogglePlay,
-  onToggleLoop,
   onAspectChange,
   onTrimChange,
-  onSeekTo,
   onToggleImproveAudio,
   onNoiseStrengthChange,
   onSelectCueForEdit,
@@ -197,8 +189,8 @@ export function VideoStage({
   const editingWords = editingCue ? draftText.trim().split(/\s+/).filter(Boolean) : [];
 
   return (
-    <div className="space-y-4 @container/stage">
-      <Card>
+    <div className="@container/stage">
+      <Card className="workspace-stage-card">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -257,11 +249,11 @@ export function VideoStage({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`relative mx-auto w-full rounded-xl overflow-hidden bg-zinc-950 border transition-colors ${
+            className={`workspace-media relative mx-auto w-full rounded-xl overflow-hidden bg-zinc-950 border transition-colors ${
               dragActive
                 ? 'border-primary ring-2 ring-primary/50'
                 : 'border-border'
-            } ${stageAspectClass}`}
+            } ${videoUrl ? stageAspectClass : 'workspace-media-empty'}`}
           >
             {videoUrl ? (
               <video
@@ -468,235 +460,182 @@ export function VideoStage({
             })()}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="default"
-                disabled={!videoUrl}
-                onClick={onTogglePlay}
-                className="cursor-pointer whitespace-nowrap font-semibold"
-              >
-                {isPlaying ? (
-                  <>
-                    <Pause className="w-4 h-4" aria-hidden="true" />
-                    <span>Pause</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" aria-hidden="true" />
-                    <span>Play clip</span>
-                  </>
+          {(videoUrl || captions.length > 0) && timeline}
+
+          <details className="workspace-video-settings">
+            <summary>Video settings</summary>
+            <div className="space-y-4 pt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={showSafeGuides ? 'default' : 'outline'}
+                    size="sm"
+                    aria-pressed={showSafeGuides}
+                    onClick={() => setShowSafeGuides((v) => !v)}
+                    className="cursor-pointer whitespace-nowrap"
+                  >
+                    <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Safe guides</span>
+                  </Button>
+                  {captions.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenActiveFix}
+                      className="cursor-pointer whitespace-nowrap"
+                    >
+                      <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Tap-to-fix</span>
+                    </Button>
+                  )}
+                </div>
+
+              <Separator />
+
+              <div className="space-y-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Frame shape</Label>
+                  <Tabs
+                    value={aspect}
+                    onValueChange={(val) => onAspectChange(val as AspectRatio)}
+                  >
+                    <TabsList className="h-8">
+                      <TabsTrigger value="r916" className="text-xs px-2.5 cursor-pointer">
+                        9:16
+                      </TabsTrigger>
+                      <TabsTrigger value="r11" className="text-xs px-2.5 cursor-pointer">
+                        1:1
+                      </TabsTrigger>
+                      <TabsTrigger value="r169" className="text-xs px-2.5 cursor-pointer">
+                        16:9
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+
+                {duration > 0 && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-medium">
+                        <Label htmlFor="trim-start-slider">Trim start</Label>
+                        <span className="font-mono text-muted-foreground tabular-nums">
+                          {formatSec(trimStart)}
+                        </span>
+                      </div>
+                      <Slider
+                        id="trim-start-slider"
+                        aria-label="Trim start"
+                        min={0}
+                        max={Math.max(0.2, duration)}
+                        step={0.1}
+                        value={[trimStart]}
+                        onValueChange={(val) => {
+                          const next = Array.isArray(val) ? val[0] : val;
+                          if (typeof next === 'number') onTrimChange('start', next);
+                        }}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-medium">
+                        <Label htmlFor="trim-end-slider">Trim end</Label>
+                        <span className="font-mono text-muted-foreground tabular-nums">
+                          {formatSec(trimEnd)}
+                        </span>
+                      </div>
+                      <Slider
+                        id="trim-end-slider"
+                        aria-label="Trim end"
+                        min={0}
+                        max={Math.max(0.2, duration)}
+                        step={0.1}
+                        value={[trimEnd]}
+                        onValueChange={(val) => {
+                          const next = Array.isArray(val) ? val[0] : val;
+                          if (typeof next === 'number') onTrimChange('end', next);
+                        }}
+                      />
+                    </div>
+                  </div>
                 )}
-              </Button>
-              <Button
-                type="button"
-                variant={loopClip ? 'default' : 'outline'}
-                size="sm"
-                aria-pressed={loopClip}
-                aria-label="Loop trim selection"
-                onClick={onToggleLoop}
-                className="cursor-pointer whitespace-nowrap"
-              >
-                <Repeat className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Loop</span>
-              </Button>
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                {formatSec(Math.max(0, currentTime - trimStart))} /{' '}
-                {formatSec(Math.max(0, trimEnd - trimStart))}
-              </span>
-            </div>
+              </div>
 
-            <div className="flex items-center gap-1.5">
-              <Button
-                type="button"
-                variant={showSafeGuides ? 'default' : 'outline'}
-                size="sm"
-                aria-pressed={showSafeGuides}
-                onClick={() => setShowSafeGuides((v) => !v)}
-                className="cursor-pointer whitespace-nowrap"
-              >
-                <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Safe guides</span>
-              </Button>
-              {captions.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenActiveFix}
-                  className="cursor-pointer whitespace-nowrap"
-                >
-                  <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Tap-to-fix</span>
-                </Button>
-              )}
-            </div>
-          </div>
+              <Separator />
 
-          <div className="space-y-1.5">
-            <Slider
-              aria-label="Playback position"
-              min={trimStart}
-              max={Math.max(trimStart + 0.2, trimEnd || duration || 1)}
-              step={0.05}
-              disabled={!videoUrl}
-              value={[Math.min(Math.max(currentTime, trimStart), Math.max(trimStart + 0.2, trimEnd || duration || 1))]}
-              onValueChange={(val) => {
-                const next = Array.isArray(val) ? val[0] : val;
-                if (typeof next === 'number') onSeekTo(next);
-              }}
-            />
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
-              <span>Scrub timeline</span>
-              <span className="hidden lg:inline">Space: Play · ←/→: ±1s · Ctrl+Z: Undo</span>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label className="text-xs font-medium text-muted-foreground">Frame shape</Label>
-              <Tabs
-                value={aspect}
-                onValueChange={(val) => onAspectChange(val as AspectRatio)}
-              >
-                <TabsList className="h-8">
-                  <TabsTrigger value="r916" className="text-xs px-2.5 cursor-pointer">
-                    9:16
-                  </TabsTrigger>
-                  <TabsTrigger value="r11" className="text-xs px-2.5 cursor-pointer">
-                    1:1
-                  </TabsTrigger>
-                  <TabsTrigger value="r169" className="text-xs px-2.5 cursor-pointer">
-                    16:9
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-
-            {duration > 0 && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-medium">
-                    <Label htmlFor="trim-start-slider">Trim start</Label>
-                    <span className="font-mono text-muted-foreground tabular-nums">
-                      {formatSec(trimStart)}
-                    </span>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-heading text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
+                      <span>Remove background noise</span>
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                      Cuts fan hum, room echo, and hiss during playback &amp; export.
+                    </p>
                   </div>
-                  <Slider
-                    id="trim-start-slider"
-                    aria-label="Trim start"
-                    min={0}
-                    max={Math.max(0.2, duration)}
-                    step={0.1}
-                    value={[trimStart]}
-                    onValueChange={(val) => {
-                      const next = Array.isArray(val) ? val[0] : val;
-                      if (typeof next === 'number') onTrimChange('start', next);
-                    }}
+                  <Switch
+                    id="improve-audio-switch"
+                    aria-label="Remove background noise"
+                    checked={improveAudio}
+                    onCheckedChange={() => onToggleImproveAudio()}
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-medium">
-                    <Label htmlFor="trim-end-slider">Trim end</Label>
-                    <span className="font-mono text-muted-foreground tabular-nums">
-                      {formatSec(trimEnd)}
+                {improveAudio && (
+                  <div className="space-y-2 pt-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        Filter level
+                      </span>
+                      <div className="inline-flex items-center gap-1 rounded-lg bg-muted/60 p-0.5 border border-border">
+                        <button
+                          type="button"
+                          aria-pressed={noiseStrength === 'clean'}
+                          onClick={() => onNoiseStrengthChange('clean')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+                            noiseStrength === 'clean'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          Natural
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={noiseStrength === 'strong'}
+                          onClick={() => onNoiseStrengthChange('strong')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+                            noiseStrength === 'strong'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          Strong isolate
+                        </button>
+                      </div>
+                    </div>
+                    <Progress value={audioMeterPct} className="h-1.5" aria-label="Audio output level" />
+                  </div>
+                )}
+
+                {audioStatus && !audioStatus.startsWith('Off') && (
+                  <p role="status" aria-live="polite" className="text-[11px] text-muted-foreground">
+                    {audioStatus}
+                  </p>
+                )}
+
+                {voiceoverActive && (
+                  <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 flex items-center gap-2 text-xs text-foreground">
+                    <Mic2 className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
+                    <span>
+                      AI Voiceover active ({replaceOriginalAudio ? 'original noisy audio muted' : 'blended over video audio'}).
                     </span>
                   </div>
-                  <Slider
-                    id="trim-end-slider"
-                    aria-label="Trim end"
-                    min={0}
-                    max={Math.max(0.2, duration)}
-                    step={0.1}
-                    value={[trimEnd]}
-                    onValueChange={(val) => {
-                      const next = Array.isArray(val) ? val[0] : val;
-                      if (typeof next === 'number') onTrimChange('end', next);
-                    }}
-                  />
-                </div>
+                )}
               </div>
-            )}
-          </div>
-
-          <Separator />
-
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="font-heading text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Volume2 className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
-                  <span>Remove background noise</span>
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                  Cuts fan hum, room echo, and hiss during playback &amp; export.
-                </p>
-              </div>
-              <Switch
-                id="improve-audio-switch"
-                aria-label="Remove background noise"
-                checked={improveAudio}
-                onCheckedChange={() => onToggleImproveAudio()}
-              />
             </div>
-
-            {improveAudio && (
-              <div className="space-y-2 pt-0.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-medium text-muted-foreground">
-                    Filter level
-                  </span>
-                  <div className="inline-flex items-center gap-1 rounded-lg bg-muted/60 p-0.5 border border-border">
-                    <button
-                      type="button"
-                      aria-pressed={noiseStrength === 'clean'}
-                      onClick={() => onNoiseStrengthChange('clean')}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
-                        noiseStrength === 'clean'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Natural
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={noiseStrength === 'strong'}
-                      onClick={() => onNoiseStrengthChange('strong')}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
-                        noiseStrength === 'strong'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Strong isolate
-                    </button>
-                  </div>
-                </div>
-                <Progress value={audioMeterPct} className="h-1.5" aria-label="Audio output level" />
-              </div>
-            )}
-
-            {audioStatus && !audioStatus.startsWith('Off') && (
-              <p role="status" aria-live="polite" className="text-[11px] text-muted-foreground">
-                {audioStatus}
-              </p>
-            )}
-
-            {voiceoverActive && (
-              <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 flex items-center gap-2 text-xs text-foreground">
-                <Mic2 className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
-                <span>
-                  AI Voiceover active ({replaceOriginalAudio ? 'original noisy audio muted' : 'blended over video audio'}).
-                </span>
-              </div>
-            )}
-          </div>
+          </details>
         </CardContent>
       </Card>
 

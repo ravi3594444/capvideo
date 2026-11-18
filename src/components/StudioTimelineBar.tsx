@@ -1,12 +1,11 @@
 import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight, Pause, PencilLine, Play, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import {
-  clampWordSpacing,
   findActiveCaption,
   formatSec,
   type CaptionCue,
-  type StyleConfig,
 } from '../utils/captions';
 
 interface StudioTimelineBarProps {
@@ -18,7 +17,6 @@ interface StudioTimelineBarProps {
   isPlaying: boolean;
   loopClip: boolean;
   captions: CaptionCue[];
-  styleConfig: StyleConfig;
   previewLabel: string | null;
   onTogglePlay: () => void;
   onToggleLoop: () => void;
@@ -35,7 +33,6 @@ export function StudioTimelineBar({
   isPlaying,
   loopClip,
   captions,
-  styleConfig,
   previewLabel,
   onTogglePlay,
   onToggleLoop,
@@ -46,7 +43,7 @@ export function StudioTimelineBar({
 
   const sorted = captions.slice().sort((a, b) => a.start - b.start);
   const maxCueEnd = sorted.reduce((acc, c) => Math.max(acc, c.end), 0);
-  const timelineSpan = Math.max(1, duration || 0, trimEnd || 0, maxCueEnd, 8);
+  const timelineSpan = Math.max(1, duration || 0, trimEnd || 0, maxCueEnd);
   const activeCue = findActiveCaption(sorted, currentTime);
   const activeIdx = activeCue ? sorted.findIndex((c) => c.id === activeCue.id) : -1;
 
@@ -80,11 +77,11 @@ export function StudioTimelineBar({
     onSeekTo(targetTime, false);
   };
 
-  const wordGap = clampWordSpacing(styleConfig.wordSpacing);
+  const seekEnd = Math.max(trimStart + 0.2, trimEnd || duration || 1);
 
   return (
     <section
-      aria-label="Studio timeline and transport dock"
+      aria-label="Timeline"
       className="rounded-xl glass-panel px-4 py-3 space-y-2.5"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -162,12 +159,7 @@ export function StudioTimelineBar({
               <PencilLine className="w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
               <span className="truncate font-medium">“{activeCue.text}”</span>
             </button>
-          ) : (
-            <span className="text-muted-foreground">No active phrase at playhead</span>
-          )}
-          <span className="hidden sm:inline font-mono text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
-            Size {styleConfig.fontSize}px · Word gap {wordGap.toFixed(2)}em
-          </span>
+          ) : null}
         </div>
       </div>
 
@@ -219,6 +211,19 @@ export function StudioTimelineBar({
           className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-white z-20"
         />
       </div>
+      {videoLoaded && (
+        <Slider
+          aria-label="Playback position"
+          min={trimStart}
+          max={seekEnd}
+          step={0.05}
+          value={[Math.min(Math.max(currentTime, trimStart), seekEnd)]}
+          onValueChange={(value) => {
+            const time = Array.isArray(value) ? value[0] : value;
+            if (typeof time === 'number') onSeekTo(time, false);
+          }}
+        />
+      )}
     </section>
   );
 }

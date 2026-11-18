@@ -1,4 +1,4 @@
-export type SeoViewId = 'studio' | 'projects' | 'deploy' | 'guide';
+export type SeoViewId = 'landing' | 'studio' | 'projects' | 'deploy' | 'guide';
 
 export interface ViewSeoMetadata {
   title: string;
@@ -7,6 +7,11 @@ export interface ViewSeoMetadata {
 }
 
 export const VIEW_SEO_METADATA: Record<SeoViewId, ViewSeoMetadata> = {
+  landing: {
+    title: 'Caption Lite — Make every word worth watching',
+    description: 'Create and style captions for Reels, Shorts, and TikToks. Try animated fonts, edit in your browser, and export your video or subtitles.',
+    hashPath: '',
+  },
   studio: {
     title: 'Caption Lite — Free Video Captioning & Style Studio',
     description:

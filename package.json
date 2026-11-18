@@ -15,10 +15,13 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@astryxdesign/core": "^0.7.16",
+    "@astryxdesign/theme-neutral": "^0.7.16",
     "@base-ui/react": "^1.9.0",
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@fontsource-variable/geist": "^5.3.0",
     "@google/genai": "^2.4.0",
+    "@stylexjs/stylex": "^0.19.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/multer": "^2.3.0",
     "@vercel/analytics": "^2.0.1",
