@@ -1,47 +1,72 @@
 import { Button } from '@astryxdesign/core/Button';
-import { ArrowRight, Captions, FileVideo, FolderOpen, Plus } from 'lucide-react';
-import { DEFAULT_STYLE_CONFIG, type StyleConfig } from '../utils/captions';
+import { ArrowRight, Captions, FileVideo, FolderOpen, Pause, Play, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { findActiveCaption, findPreviousCaption, type StyleConfig } from '../utils/captions';
 import type { StudioDraft } from '../utils/draftStorage';
+import { CaptionOverlay } from './CaptionOverlay';
+import { galleryLoopDuration, galleryTemplates, type GalleryTemplate } from './galleryTemplates';
 
-const templates = [
-  {
-    title: 'Word Highlight', image: 'city', look: 'highlight', caption: ['Pay attention', 'to this.'],
-    description: 'Highlight the word being spoken.',
-    style: { style: 'st-highlight', accentColor: '#ffd60a', revealMode: 'karaoke' },
-  },
-  {
-    title: 'Editorial Serif', image: 'alpine', look: 'editorial', caption: ['Somewhere', 'quieter.'],
-    description: 'Soft serif type for slower cuts.',
-    style: { style: 'st-editorial', fontFamily: 'editorial', revealMode: 'spotlight', effect: 'fadeIn' },
-  },
-  {
-    title: 'Clean Subtitles', image: 'forest', look: 'clean', caption: ['Take the', 'long way.'],
-    description: 'Simple subtitles with an even rhythm.',
-    style: { style: 'st-minimal', revealMode: 'flash', effect: 'fadeIn' },
-  },
-  {
-    title: 'One-Word Pop', image: 'dog', look: 'pop', caption: ['LISTEN.'],
-    description: 'One bold word at a time.',
-    style: { style: 'st-pop', fontFamily: 'impact', accentColor: '#c2f970', revealMode: 'pop', effect: 'bounce' },
-  },
-  {
-    title: 'Typewriter', image: 'network', look: 'mono', caption: ['stay_', 'connected'],
-    description: 'Monospace text that builds as you speak.',
-    style: { style: 'st-typewriter', fontFamily: 'mono', accentColor: '#67e8f9', revealMode: 'build', effect: 'typewriter' },
-  },
-  {
-    title: 'Cinema Matte', image: 'coast', look: 'cinema', caption: ['See you by the sea.'],
-    description: 'A shaded caption line for bright clips.',
-    style: { style: 'st-cinema', revealMode: 'flash', effect: 'fadeIn' },
-  },
-] satisfies Array<{
-  title: string;
-  image: string;
-  look: string;
-  caption: string[];
-  description: string;
-  style: Partial<StyleConfig>;
-}>;
+const categories = [
+  { id: 'all', label: 'All' },
+  { id: 'simple', label: 'Clean' },
+  { id: 'font-switch', label: 'Kinetic' },
+  { id: 'creator', label: 'Creator' },
+  { id: 'preset', label: 'Presets' },
+] as const;
+
+function GalleryTemplateCard({ template, allowMotion, onSelect }: {
+  template: GalleryTemplate;
+  allowMotion: boolean;
+  onSelect: (title: string, style: StyleConfig) => void;
+}) {
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const [inView, setInView] = useState(() => !('IntersectionObserver' in window));
+  const [time, setTime] = useState(template.cues[0].end - 0.05);
+  const isPlaying = allowMotion && inView;
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.intersectionRatio >= 0.25), { threshold: 0.25 });
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    let lastTick = performance.now();
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const elapsed = (now - lastTick) / 1000;
+      lastTick = now;
+      setTime(current => (current + elapsed) % galleryLoopDuration);
+    }, 65);
+    return () => window.clearInterval(timer);
+  }, [isPlaying]);
+
+  const cue = findActiveCaption(template.cues, time) ?? template.cues[0];
+  const previousCue = template.style.pageLayout === 'stack' ? findPreviousCaption(template.cues, cue) : null;
+
+  return (
+    <button
+      ref={cardRef}
+      type="button"
+      className="gallery-template"
+      data-preview-playing={isPlaying}
+      aria-label={`Use ${template.title} template`}
+      onClick={() => onSelect(template.title, template.style)}
+    >
+      <span className="gallery-template-art" aria-hidden="true">
+        <img src={`/assets/showcase/${template.image}.webp`} alt="" loading="lazy" decoding="async" width={300} height={228} />
+        <CaptionOverlay cue={cue} previousCue={previousCue} currentTime={time} config={template.style} />
+      </span>
+      <span className="gallery-template-info">
+        <span><strong>{template.title}</strong><small>{template.description}</small></span>
+        <ArrowRight size={18} aria-hidden="true" />
+      </span>
+    </button>
+  );
+}
 
 interface StudioGalleryProps {
   currentDraft: StudioDraft | null;
@@ -53,6 +78,25 @@ interface StudioGalleryProps {
 
 export function StudioGallery({ currentDraft, recentDrafts, onBlank, onResume, onTemplate }: StudioGalleryProps) {
   const drafts = currentDraft ? [currentDraft, ...recentDrafts] : recentDrafts;
+
+  const [category, setCategory] = useState<(typeof categories)[number]['id']>('all');
+  const [reduceMotion, setReduceMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
+  const [pageVisible, setPageVisible] = useState(() => !document.hidden);
+  const motionEnabled = motionOverride ?? !reduceMotion;
+  const templates = category === 'all' ? galleryTemplates : galleryTemplates.filter(template => template.category === category);
+
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setReduceMotion(preference.matches);
+    const updateVisibility = () => setPageVisible(!document.hidden);
+    preference.addEventListener('change', updatePreference);
+    document.addEventListener('visibilitychange', updateVisibility);
+    return () => {
+      preference.removeEventListener('change', updatePreference);
+      document.removeEventListener('visibilitychange', updateVisibility);
+    };
+  }, []);
 
   return (
     <div className="studio-gallery">
@@ -86,30 +130,40 @@ export function StudioGallery({ currentDraft, recentDrafts, onBlank, onResume, o
       )}
 
       <section aria-labelledby="gallery-template-heading">
-        <div className="gallery-section-heading">
-          <h2 id="gallery-template-heading">Caption templates</h2>
-          <p>Each template opens a new workspace with its style already applied.</p>
+        <div className="gallery-section-heading gallery-template-heading">
+          <div>
+            <h2 id="gallery-template-heading">Caption templates</h2>
+            <p>{galleryTemplates.length} styles and presets. Pick one to open it in Workspace.</p>
+          </div>
+          <Button
+            label={motionEnabled ? 'Pause previews' : 'Play previews'}
+            icon={motionEnabled ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+            variant="secondary"
+            className="gallery-motion-toggle"
+            onClick={() => setMotionOverride(!motionEnabled)}
+          />
+        </div>
+        <div className="gallery-filters" role="group" aria-label="Filter caption templates">
+          {categories.map(({ id, label }) => (
+            <Button
+              key={id}
+              label={label}
+              size="sm"
+              variant="secondary"
+              aria-pressed={id === category}
+              onClick={() => setCategory(id)}
+              className="gallery-filter"
+            />
+          ))}
         </div>
         <div className="gallery-template-grid">
-          {templates.map((template) => (
-            <button
-              key={template.title}
-              type="button"
-              className="gallery-template"
-              aria-label={`Use ${template.title} template`}
-              onClick={() => onTemplate(template.title, { ...DEFAULT_STYLE_CONFIG, ...template.style })}
-            >
-              <span className="gallery-template-art">
-                <img src={`/assets/showcase/${template.image}.webp`} alt="" loading="lazy" width={300} height={228} />
-                <span aria-hidden="true" className={`gallery-template-caption gallery-template-caption--${template.look}`}>
-                  {template.caption.map((line) => <span key={line}>{line}</span>)}
-                </span>
-              </span>
-              <span className="gallery-template-info">
-                <span><strong>{template.title}</strong><small>{template.description}</small></span>
-                <ArrowRight size={18} aria-hidden="true" />
-              </span>
-            </button>
+          {templates.map(template => (
+            <GalleryTemplateCard
+              key={template.id}
+              template={template}
+              allowMotion={motionEnabled && pageVisible}
+              onSelect={onTemplate}
+            />
           ))}
         </div>
       </section>

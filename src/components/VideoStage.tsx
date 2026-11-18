@@ -18,22 +18,16 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  clampWordSpacing,
   classifyDroppedFile,
   findActiveCaption,
   findPreviousCaption,
   formatSec,
-  getActiveWordIndex,
-  getCaptionContainerSpec,
-  getWordVisualSpec,
-  isNegativeEmphasisWord,
   isWordSpotlightKey,
-  resolveEffectiveEffect,
-  resolveEffectiveReveal,
   type AspectRatio,
   type CaptionCue,
   type StyleConfig,
 } from '../utils/captions';
+import { CaptionOverlay } from './CaptionOverlay';
 import type { NoiseCleanStrength } from '../utils/audioEngine';
 
 interface VideoStageProps {
@@ -130,17 +124,8 @@ export function VideoStage({
   }
 
   const activeCue = findActiveCaption(captions, currentTime);
-  const effectiveReveal = resolveEffectiveReveal(styleConfig);
-  const effectiveEffect = resolveEffectiveEffect(styleConfig);
   const spotlightAuto = styleConfig.spotlightAuto ?? true;
-  const pageLayout = styleConfig.pageLayout ?? 'replace';
-  const prevCue =
-    pageLayout === 'stack' && effectiveReveal !== 'pop'
-      ? findPreviousCaption(captions, activeCue)
-      : null;
-
-  const words = activeCue ? activeCue.text.trim().split(/\s+/).filter(Boolean) : [];
-  const activeWordIdx = activeCue ? getActiveWordIndex(activeCue, currentTime) : -1;
+  const previousCue = styleConfig.pageLayout === 'stack' ? findPreviousCaption(captions, activeCue) : null;
 
   const stageAspectClass =
     aspect === 'r916'
@@ -347,111 +332,15 @@ export function VideoStage({
               </div>
             )}
 
-            {videoUrl && activeCue && words.length > 0 && (() => {
-              const containerSpec = getCaptionContainerSpec(styleConfig.style);
-              const cueElapsed = Math.max(0, currentTime - activeCue.start);
-              const cueDuration = Math.max(0.2, activeCue.end - activeCue.start);
-              const useDifference = styleConfig.blendMode === 'difference';
-              const wordSpacingEm = clampWordSpacing(styleConfig.wordSpacing);
-
-              const wordNodes = words
-                .map((word, idx) => {
-                  const isOn = idx === activeWordIdx;
-                  const isKey = isWordSpotlightKey(word, activeCue, spotlightAuto);
-                  const spec = getWordVisualSpec({
-                    style: styleConfig.style,
-                    fontFamily: styleConfig.fontFamily,
-                    word,
-                    wordIndex: idx,
-                    activeWordIndex: activeWordIdx,
-                    accentColor: styleConfig.accentColor,
-                    revealMode: effectiveReveal,
-                    effect: effectiveEffect,
-                    cueElapsedSec: cueElapsed,
-                    cueDurationSec: cueDuration,
-                    isSpotlightKey: isKey,
-                    isNegative: isNegativeEmphasisWord(word),
-                    currentTimeSec: currentTime,
-                  });
-                  if (spec.isHidden) return null;
-
-                  const transforms: string[] = [];
-                  if (spec.scale !== 1) transforms.push(`scale(${spec.scale})`);
-                  if (spec.translateYEm !== 0) transforms.push(`translateY(${spec.translateYEm}em)`);
-                  if (spec.rotateDeg !== 0) transforms.push(`rotate(${spec.rotateDeg}deg)`);
-
-                  let customShadow = spec.shadowMode === 'none' ? 'none' : undefined;
-                  if (spec.glitchColorShift && spec.glitchDxPx) {
-                    const dx = spec.glitchDxPx;
-                    customShadow = `${-dx}px 0 rgba(255,45,85,0.8), ${dx}px 0 rgba(34,211,238,0.8)`;
-                  }
-
-                  const inlineStyle: React.CSSProperties = {
-                    fontFamily: spec.fontCss,
-                    fontWeight: spec.fontWeight,
-                    fontStyle: spec.fontStyle,
-                    color: spec.color,
-                    opacity: spec.opacity,
-                    backgroundColor: spec.backgroundColor ?? undefined,
-                    marginInline:
-                      spec.scale > 1.02 ? `${((spec.scale - 1) * 0.58).toFixed(2)}em` : undefined,
-                    transform: transforms.length ? transforms.join(' ') : undefined,
-                    textShadow: customShadow,
-                  };
-
-                  return (
-                    <button
-                      key={`${activeCue.id}_${idx}`}
-                      type="button"
-                      onClick={() => onSelectCueForEdit(activeCue)}
-                      title="Tap to edit text or toggle Spotlight key word"
-                      style={inlineStyle}
-                      className={`w border-0 ${isOn ? 'on' : ''}`}
-                    >
-                      {spec.displayText}
-                    </button>
-                  );
-                })
-                .filter(Boolean);
-
-              return (
-                <div
-                  data-testid="caption-overlay"
-                  className={`cap-overlay ${styleConfig.position} ${styleConfig.style}`}
-                  style={{
-                    fontSize: `calc(${styleConfig.fontSize}px * var(--preview-caption-scale, 1))`,
-                    mixBlendMode: useDifference ? 'difference' : undefined,
-                  }}
-                >
-                  {prevCue && (
-                    <div
-                      className="mb-1 text-[0.76em] font-semibold text-white/60 tracking-tight truncate px-3"
-                      style={{ textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}
-                    >
-                      {prevCue.text.trim()}
-                    </div>
-                  )}
-                  {containerSpec.hasFullLineBackdrop ? (
-                    <span
-                      className="cap-line-backdrop inline-flex flex-wrap justify-center items-baseline gap-y-[0.14em] max-w-full"
-                      style={{
-                        columnGap: `${wordSpacingEm}em`,
-                        backgroundColor: containerSpec.backdropColor ?? undefined,
-                      }}
-                    >
-                      {wordNodes}
-                    </span>
-                  ) : (
-                    <div
-                      className="inline-flex flex-wrap justify-center items-baseline gap-y-[0.14em] max-w-full"
-                      style={{ columnGap: `${wordSpacingEm}em` }}
-                    >
-                      {wordNodes}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            {videoUrl && activeCue && (
+              <CaptionOverlay
+                cue={activeCue}
+                previousCue={previousCue}
+                currentTime={currentTime}
+                config={styleConfig}
+                onEdit={onSelectCueForEdit}
+              />
+            )}
           </div>
 
           <details className="workspace-video-settings">
