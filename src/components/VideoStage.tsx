@@ -43,7 +43,6 @@ interface VideoStageProps {
   fileInfo: string;
   duration: number;
   currentTime: number;
-  timeline: React.ReactNode;
   trimStart: number;
   trimEnd: number;
   aspect: AspectRatio;
@@ -84,7 +83,6 @@ export function VideoStage({
   fileInfo,
   duration,
   currentTime,
-  timeline,
   trimStart,
   trimEnd,
   aspect,
@@ -191,7 +189,7 @@ export function VideoStage({
   return (
     <div className="@container/stage">
       <Card className="workspace-stage-card">
-        <CardHeader className="pb-3">
+        <CardHeader className="editor-preview-heading">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle>
@@ -243,13 +241,13 @@ export function VideoStage({
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="editor-preview-content">
           <div
             data-testid="video-stage"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`workspace-media relative mx-auto w-full rounded-xl overflow-hidden bg-zinc-950 border transition-colors ${
+            className={`workspace-media relative mx-auto w-full overflow-hidden transition-colors ${
               dragActive
                 ? 'border-primary ring-2 ring-primary/50'
                 : 'border-border'
@@ -269,18 +267,14 @@ export function VideoStage({
                 className="w-full h-full object-cover block"
               />
             ) : (
-              <div className="w-full h-full min-h-[260px] flex flex-col items-center justify-center text-center p-5 text-zinc-300">
+              <div className="editor-dropzone">
                 <div className="w-11 h-11 rounded-xl border border-zinc-800 bg-zinc-900/90 flex items-center justify-center mb-3">
                   <Film className="w-5 h-5 text-zinc-200" aria-hidden="true" />
                 </div>
                 <p className="text-sm font-semibold text-white">Add your video</p>
                 <p className="text-xs text-zinc-300 mt-1 max-w-[16rem] leading-relaxed">
-                  <span className="pointer-fine:hidden">
-                    Pick a clip from your phone or record a new one. Captions are added next.
-                  </span>
-                  <span className="hidden pointer-fine:inline">
-                    Drag a video or .srt file onto this frame, or pick a clip from your computer.
-                  </span>
+                  <span className="pointer-fine:hidden">Choose a clip from your device or record one.</span>
+                  <span className="hidden pointer-fine:inline">Drop a clip or subtitle file here to get started.</span>
                 </p>
                 <div className="mt-4 flex w-full max-w-[15rem] flex-col gap-2">
                   <Button
@@ -290,7 +284,7 @@ export function VideoStage({
                     className="cursor-pointer font-semibold"
                   >
                     <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Choose video</span>
+                    <span>Import video</span>
                   </Button>
                   <Button
                     type="button"
@@ -425,7 +419,7 @@ export function VideoStage({
                   data-testid="caption-overlay"
                   className={`cap-overlay ${styleConfig.position} ${styleConfig.style}`}
                   style={{
-                    fontSize: `${styleConfig.fontSize}px`,
+                    fontSize: `calc(${styleConfig.fontSize}px * var(--preview-caption-scale, 1))`,
                     mixBlendMode: useDifference ? 'difference' : undefined,
                   }}
                 >
@@ -459,8 +453,6 @@ export function VideoStage({
               );
             })()}
           </div>
-
-          {(videoUrl || captions.length > 0) && timeline}
 
           <details className="workspace-video-settings">
             <summary>Video settings</summary>

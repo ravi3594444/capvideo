@@ -79,6 +79,15 @@ export function StudioTimelineBar({
 
   const seekEnd = Math.max(trimStart + 0.2, trimEnd || duration || 1);
 
+  if (!videoLoaded && !captions.length) {
+    return (
+      <section aria-label="Timeline" className="workspace-timeline editor-timeline-empty">
+        <h3 className="workspace-section-label">Timeline</h3>
+        <p>Your clip and caption timings will appear here.</p>
+      </section>
+    );
+  }
+
   return (
     <section
       aria-label="Timeline"

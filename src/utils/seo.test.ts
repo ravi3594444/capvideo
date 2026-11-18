@@ -8,7 +8,7 @@ import {
 } from './seo';
 
 test('VIEW_SEO_METADATA enforces recommended title and meta description length budgets', () => {
-  const views: SeoViewId[] = ['landing', 'studio', 'projects', 'deploy', 'guide'];
+  const views: SeoViewId[] = ['landing', 'gallery', 'studio', 'projects', 'deploy', 'guide'];
   for (const view of views) {
     const meta = getViewSeoMetadata(view);
     assert.ok(

@@ -135,7 +135,7 @@ function ExampleCard({ example, index, size, intro, scroll, pointer, reduced }: 
   );
 }
 
-export function LandingPage({ onOpenStudio }: { onOpenStudio: () => void }) {
+export function LandingPage({ onOpenGallery }: { onOpenGallery: () => void }) {
   const showcaseRef = useRef<HTMLElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<SceneSize>({ width: 0, height: 0 });
@@ -193,7 +193,7 @@ export function LandingPage({ onOpenStudio }: { onOpenStudio: () => void }) {
             <h1 id="landing-title">Make every word<br />worth watching.</h1>
             <p>Style captions for Reels, Shorts, and TikToks.</p>
             <div className="landing-actions">
-              <Button variant="primary" size="lg" label="Open Studio" icon={<ArrowRight size={17} />} onClick={onOpenStudio} className="landing-primary" />
+              <Button variant="primary" size="lg" label="Open Gallery" icon={<ArrowRight size={17} />} onClick={onOpenGallery} className="landing-primary" />
               <a href="#styles" className="landing-secondary">See caption styles <ArrowDown size={14} aria-hidden="true" /></a>
             </div>
           </motion.div>
@@ -222,7 +222,7 @@ export function LandingPage({ onOpenStudio }: { onOpenStudio: () => void }) {
             </article>
           ))}
         </div>
-        <Button label="Start editing" variant="primary" size="lg" icon={<ArrowRight size={17} />} onClick={onOpenStudio} className="landing-primary" />
+        <Button label="Start editing" variant="primary" size="lg" icon={<ArrowRight size={17} />} onClick={onOpenGallery} className="landing-primary" />
       </section>
     </div>
   );

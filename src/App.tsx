@@ -4,11 +4,15 @@ import { Theme } from '@astryxdesign/core/theme';
 import { neutralTheme } from '@astryxdesign/theme-neutral';
 import {
   AlertCircle,
+  ArrowLeft,
   Captions,
   Download,
+  Film,
   Palette,
+  Pause,
+  Play,
   Pipette,
-  RotateCcw,
+  SlidersHorizontal,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
@@ -22,6 +26,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TopNav, VIEW_HREFS, type AppView } from './components/TopNav';
 import { LandingPage } from './components/LandingPage';
+import { StudioGallery } from './components/StudioGallery';
 import { VideoStage } from './components/VideoStage';
 import { StudioTimelineBar } from './components/StudioTimelineBar';
 import { CaptionsPanel, type ServerCapabilities } from './components/CaptionsPanel';
@@ -36,7 +41,6 @@ import {
   clampWordSpacing,
   commitCaptionHistory,
   createCaptionHistory,
-  createSampleCaptions,
   DEFAULT_STYLE_CONFIG,
   findActiveCaption,
   parseSrt,
@@ -48,7 +52,7 @@ import {
   type CaptionHistoryState,
   type StyleConfig,
 } from './utils/captions';
-import { clearLocalDraft, loadLocalDraft, saveLocalDraft } from './utils/draftStorage';
+import { loadLocalDraft, loadRecentDrafts, saveLocalDraft, saveRecentDrafts, type StudioDraft } from './utils/draftStorage';
 import { applyDocumentSeo } from './utils/seo';
 import {
   createAudioCleanGraph,
@@ -71,13 +75,13 @@ import {
 
 type InspectorTab = 'captions' | 'style' | 'reference' | 'ai' | 'export';
 
-const INSPECTOR_TABS: { id: InspectorTab; label: string; Icon: LucideIcon }[] = [
+const INSPECTOR_TABS = [
   { id: 'captions', label: 'Captions', Icon: Captions },
   { id: 'style', label: 'Style', Icon: Palette },
   { id: 'reference', label: 'Reference', Icon: Pipette },
   { id: 'ai', label: 'AI tools', Icon: Sparkles },
   { id: 'export', label: 'Export', Icon: Download },
-];
+] as const satisfies ReadonlyArray<{ id: InspectorTab; label: string; Icon: LucideIcon }>;
 
 function getInitialView(): AppView {
   if (typeof window === 'undefined') return 'landing';
@@ -85,7 +89,9 @@ function getInitialView(): AppView {
   if (hash === 'projects' || hash === 'deploy' || hash === 'guide' || hash === 'studio') {
     return hash;
   }
-  return window.location.pathname === '/studio' ? 'studio' : 'landing';
+  if (window.location.pathname === '/studio') return 'studio';
+  if (window.location.pathname === '/gallery') return 'gallery';
+  return 'landing';
 }
 
 function InspectorPanel({ tab, activeTab, children }: { tab: InspectorTab; activeTab: InspectorTab; children: ReactNode }) {
@@ -94,7 +100,7 @@ function InspectorPanel({ tab, activeTab, children }: { tab: InspectorTab; activ
     <section
       role="region"
       id={`inspector-panel-${tab}`}
-      aria-labelledby={`inspector-tab-${tab}`}
+      aria-labelledby={active ? 'workspace-inspector-title' : undefined}
       hidden={!active}
       tabIndex={active ? 0 : -1}
       className="workspace-panel"
@@ -108,19 +114,29 @@ function StudioApp() {
   const { user, loading: authLoading, authError, signInWithGoogle, signOutUser, clearAuthError } =
     useAuth();
 
-  const initialDraftRef = useRef(loadLocalDraft());
-  const initialDraft = initialDraftRef.current;
+  const [initialDraft] = useState(loadLocalDraft);
 
   const [activeView, setActiveView] = useState<AppView>(() => getInitialView());
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('captions');
+  const [mobilePane, setMobilePane] = useState<'preview' | 'edit'>('preview');
+  const [activeLocalId, setActiveLocalId] = useState(() => initialDraft?.id || crypto.randomUUID());
+  const [recentDrafts, setRecentDrafts] = useState(loadRecentDrafts);
+  const projectSwitchVersion = useRef(0);
   const isCompact = useIsCompactLayout();
-  const inspectorRef = useRef<HTMLDivElement | null>(null);
   const videoPickerRef = useRef<HTMLInputElement | null>(null);
 
   const navigate = (view: AppView) => {
     const href = VIEW_HREFS[view];
     if (window.location.pathname + window.location.hash !== href) {
       window.history.pushState(null, '', href);
+    }
+    if (activeView === 'studio' && view !== 'studio') {
+      videoRef.current?.pause();
+      audioGraphRef.current?.dispose();
+      audioGraphRef.current = null;
+      voiceAudioRef.current?.pause();
+      setIsPlaying(false);
+      setImproveAudio(false);
     }
     setActiveView(view);
     window.scrollTo(0, 0);
@@ -176,6 +192,7 @@ function StudioApp() {
 
   // Video & playback state
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const loadedMediaUrl = useRef<string | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [fileInfo, setFileInfo] = useState('No video yet');
@@ -216,6 +233,7 @@ function StudioApp() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       saveLocalDraft({
+        id: activeLocalId,
         projectTitle,
         aspect,
         language,
@@ -226,7 +244,7 @@ function StudioApp() {
       });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [projectTitle, aspect, language, loopClip, styleConfig, captions]);
+  }, [activeLocalId, projectTitle, aspect, language, loopClip, styleConfig, captions]);
 
   useEffect(() => {
     fetch('/api/capabilities')
@@ -317,7 +335,7 @@ function StudioApp() {
         return;
       }
 
-      if (isEditingInput) return;
+      if (isEditingInput || target?.closest('button, [role="button"], a, summary, [role="slider"]')) return;
 
       const vid = videoRef.current;
       if (!vid || !videoUrl) return;
@@ -360,14 +378,13 @@ function StudioApp() {
   const handleInspectorTabChange = (tab: InspectorTab) => {
     setPreviewStyleState(null);
     setInspectorTab(tab);
-    if (!isCompact) return;
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    window.requestAnimationFrame(() => {
-      inspectorRef.current?.scrollIntoView({
-        behavior: reduceMotion ? 'auto' : 'smooth',
-        block: 'start',
-      });
-    });
+    setMobilePane('edit');
+    if (isCompact) window.scrollTo(0, 0);
+  };
+
+  const openMobilePreview = () => {
+    setMobilePane('preview');
+    window.scrollTo(0, 0);
   };
 
   const handleSrtFileDropped = async (file: File) => {
@@ -404,6 +421,12 @@ function StudioApp() {
   const handleLoadedMetadata = () => {
     const vid = videoRef.current;
     if (!vid) return;
+    vid.muted = Boolean(voiceoverEnabled && voiceoverUrl && replaceOriginalAudio);
+    if (videoUrl && loadedMediaUrl.current === videoUrl) {
+      vid.currentTime = Math.min(Math.max(currentTime, trimStart), trimEnd || duration);
+      return;
+    }
+    loadedMediaUrl.current = videoUrl;
     const dur = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : 2.1;
     setDuration(dur);
     setTrimStart(0);
@@ -528,7 +551,10 @@ function StudioApp() {
 
   const handleSeekTo = (time: number, autoPlay = false) => {
     const vid = videoRef.current;
-    if (!vid || !videoUrl) return;
+    if (!vid || !videoUrl) {
+      if (!autoPlay) setCurrentTime(time);
+      return;
+    }
     vid.currentTime = time;
     setCurrentTime(time);
     const va = voiceAudioRef.current;
@@ -583,11 +609,91 @@ function StudioApp() {
     }
   };
 
+  const currentDraft: StudioDraft | null = videoFile || captions.length ||
+      projectTitle !== 'Untitled Reel' || aspect !== 'r916' || styleConfig.style !== DEFAULT_STYLE_CONFIG.style
+    ? { id: activeLocalId, projectTitle, aspect, language, loopClip, styleConfig, captions, updatedAt: Date.now() }
+    : null;
+
+  const archiveCurrentDraft = () => {
+    if (!currentDraft) return;
+    const next = [currentDraft, ...recentDrafts.filter((draft) => draft.id !== activeLocalId)];
+    saveRecentDrafts(next);
+    setRecentDrafts(next);
+  };
+
+  const resetProjectMedia = () => {
+    videoRef.current?.pause();
+    voiceAudioRef.current?.pause();
+    audioGraphRef.current?.dispose();
+    audioGraphRef.current = null;
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    if (voiceoverUrl) URL.revokeObjectURL(voiceoverUrl);
+    setVideoFile(null);
+    setVideoUrl(null);
+    setFileInfo('No video yet');
+    setDuration(0);
+    setTrimStart(0);
+    setTrimEnd(0);
+    setCurrentTime(0);
+    setIsPlaying(false);
+    setImproveAudio(false);
+    setVoiceoverBlob(null);
+    setVoiceoverUrl(null);
+    setVoiceoverEnabled(false);
+    setReplaceOriginalAudio(true);
+    setNoiseStrength('clean');
+    setAudioStatus('Off · Hearing original audio.');
+    setEditingCue(null);
+    setPreviewStyleState(null);
+    setInspectorTab('captions');
+    setMobilePane('preview');
+  };
+
+  const openLocalProject = (draft: StudioDraft) => {
+    ++projectSwitchVersion.current;
+    if (draft.id === activeLocalId) {
+      openMobilePreview();
+      navigate('studio');
+      return;
+    }
+
+    archiveCurrentDraft();
+    resetProjectMedia();
+    setActiveProjectId(null);
+    setActiveLocalId(draft.id || crypto.randomUUID());
+    setProjectTitle(draft.projectTitle);
+    setAspect(draft.aspect);
+    setLanguage(draft.language);
+    setLoopClip(draft.loopClip);
+    setStyleConfig(draft.styleConfig);
+    resetCaptionHistory(draft.captions);
+    navigate('studio');
+  };
+
+  const startProject = (title = 'Untitled Reel', style = DEFAULT_STYLE_CONFIG) => {
+    openLocalProject({
+      id: crypto.randomUUID(),
+      projectTitle: title,
+      aspect: 'r916',
+      language: 'en-US',
+      loopClip: false,
+      styleConfig: style,
+      captions: [],
+      updatedAt: Date.now(),
+    });
+  };
+
   const handleOpenCloudProject = async (proj: CloudProject) => {
     if (!user) return;
+    const version = ++projectSwitchVersion.current;
     try {
       const loadedCues = await loadProjectCaptions(proj.id, user.uid);
+      if (projectSwitchVersion.current !== version) return;
+      archiveCurrentDraft();
+      resetProjectMedia();
+      setActiveLocalId(crypto.randomUUID());
       setActiveProjectId(proj.id);
+      setLoopClip(false);
       setProjectTitle(proj.title);
       setAspect(proj.aspectRatio);
       setLanguage(proj.language);
@@ -617,27 +723,6 @@ function StudioApp() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load project captions.');
     }
-  };
-
-  const handleNewProject = () => {
-    setActiveProjectId(null);
-    setProjectTitle('Untitled Reel');
-    setAspect('r916');
-    setStyleConfig(DEFAULT_STYLE_CONFIG);
-    resetCaptionHistory([]);
-    navigate('studio');
-  };
-
-  const handleResetDemo = () => {
-    clearLocalDraft();
-    setActiveProjectId(null);
-    setProjectTitle('Untitled Reel');
-    setAspect('r916');
-    setLanguage('en-US');
-    setLoopClip(false);
-    setStyleConfig(DEFAULT_STYLE_CONFIG);
-    resetCaptionHistory(createSampleCaptions());
-    toast.success('Studio reset to the sample captions.');
   };
 
   return (
@@ -673,28 +758,41 @@ function StudioApp() {
         )}
 
         <main>
-          {activeView === 'landing' && <LandingPage onOpenStudio={() => navigate('studio')} />}
+          {activeView === 'landing' && <LandingPage onOpenGallery={() => navigate('gallery')} />}
+          {activeView === 'gallery' && (
+            <StudioGallery
+              currentDraft={currentDraft}
+              recentDrafts={recentDrafts.filter((draft) => draft.id !== activeLocalId)}
+              onBlank={() => startProject()}
+              onTemplate={startProject}
+              onResume={openLocalProject}
+            />
+          )}
           {activeView === 'studio' && (
-            <div className="workspace-studio">
+            <div className="workspace-studio" data-mobile-pane={mobilePane}>
               <div className="workspace-project-bar glassy-chrome">
                 <div className="workspace-project-name">
-                  <h1 className="sr-only">Caption Lite Studio</h1>
-                  <Label htmlFor="project-title-input" className="sr-only">Project title</Label>
-                  <Input
-                    id="project-title-input"
-                    type="text"
-                    maxLength={120}
-                    value={projectTitle}
-                    onChange={(event) => setProjectTitle(event.target.value)}
-                    className="workspace-title-input"
+                  <AstryxButton
+                    size="md" variant="secondary" isIconOnly label="Back to Gallery"
+                    icon={<ArrowLeft size={18} />} onClick={() => navigate('gallery')} className="editor-gallery-back"
                   />
-                  <p className="workspace-draft">
-                    {activeProjectId ? 'Cloud project' : 'Local draft'}
-                  </p>
+                  <div className="editor-project-title">
+                    <h1 className="sr-only">Caption Lite Workspace</h1>
+                    <Label htmlFor="project-title-input" className="sr-only">Project title</Label>
+                    <Input
+                      id="project-title-input"
+                      type="text"
+                      maxLength={120}
+                      value={projectTitle}
+                      onChange={(event) => setProjectTitle(event.target.value)}
+                      className="workspace-title-input"
+                    />
+                    <p className="workspace-draft">
+                      {activeProjectId ? 'Cloud project' : 'Local draft'}
+                    </p>
+                  </div>
                 </div>
                 <div className="workspace-actions">
-                  <AstryxButton size="md" variant="secondary" isIconOnly label="Start over with the sample captions"
-                    icon={<RotateCcw size={17} />} onClick={handleResetDemo} />
                   <AstryxButton size="md" variant="primary" label="Export" icon={<Download size={17} />}
                     onClick={() => handleInspectorTabChange('export')} className="workspace-export" />
                 </div>
@@ -702,8 +800,7 @@ function StudioApp() {
 
               <div className="workspace-grid">
                 <aside className="workspace-side">
-                  <nav className="workspace-tools glassy-chrome" aria-label="Editing tools">
-                    <span className="workspace-tools-heading">Workspace</span>
+                  <nav className="workspace-tools" aria-label="Editing tools">
                     {INSPECTOR_TABS.map(({ id, label, Icon }) => (
                       <AstryxButton
                         key={id}
@@ -721,32 +818,38 @@ function StudioApp() {
                   </nav>
                 </aside>
 
-                <div className="workspace-preview">
+                <nav className="editor-mobile-dock glassy-chrome" aria-label="Mobile workspace">
+                  {([
+                    { id: 'preview', label: 'Preview', Icon: Film },
+                    INSPECTOR_TABS[0],
+                    INSPECTOR_TABS[1],
+                    { id: 'tools', label: 'Tools', Icon: SlidersHorizontal },
+                    INSPECTOR_TABS[4],
+                  ] as const).map(({ id, label, Icon }) => {
+                    const toolsActive = inspectorTab === 'reference' || inspectorTab === 'ai';
+                    const active = id === 'preview'
+                      ? mobilePane === 'preview'
+                      : mobilePane === 'edit' && (id === 'tools' ? toolsActive : inspectorTab === id);
+                    return (
+                      <AstryxButton
+                        key={id} variant="secondary" label={label} size="md"
+                        icon={<Icon size={17} aria-hidden="true" />}
+                        aria-current={active ? 'true' : undefined}
+                        className="workspace-tool"
+                        onClick={() => {
+                          if (id === 'preview') openMobilePreview();
+                          else if (id === 'tools') handleInspectorTabChange(toolsActive ? inspectorTab : 'reference');
+                          else handleInspectorTabChange(id);
+                        }}
+                      />
+                    );
+                  })}
+                </nav>
+
+                <div className="workspace-preview" data-has-clip={Boolean(videoUrl)}>
                   <VideoStage
                     videoRef={videoRef}
                     videoPickerRef={videoPickerRef}
-                    timeline={
-                      <StudioTimelineBar
-                        videoLoaded={Boolean(videoUrl)}
-                        duration={duration}
-                        currentTime={currentTime}
-                        trimStart={trimStart}
-                        trimEnd={trimEnd}
-                        isPlaying={isPlaying}
-                        loopClip={loopClip}
-                        captions={captions}
-                        previewLabel={previewStyleState?.label ?? null}
-                        onTogglePlay={() => void handleTogglePlay()}
-                        onToggleLoop={() => setLoopClip((prev) => !prev)}
-                        onSeekTo={handleSeekTo}
-                        onEditActiveCue={(cue) => {
-                          videoRef.current?.pause();
-                          voiceAudioRef.current?.pause();
-                          setIsPlaying(false);
-                          setEditingCue(cue);
-                        }}
-                      />
-                    }
                     videoUrl={videoUrl}
                     fileInfo={fileInfo}
                     duration={duration}
@@ -807,6 +910,15 @@ function StudioApp() {
                     }}
                     onEnded={handleEnded}
                   />
+                  {videoUrl && (
+                    <div className="editor-mini-transport">
+                      <AstryxButton size="md" variant="secondary"
+                        label={isPlaying ? 'Pause preview' : 'Play preview'}
+                        icon={isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                        onClick={() => void handleTogglePlay()} />
+                      <AstryxButton size="md" variant="secondary" label="Full preview" onClick={openMobilePreview} />
+                    </div>
+                  )}
                   <audio
                     ref={voiceAudioRef}
                     src={voiceoverUrl ?? undefined}
@@ -815,9 +927,17 @@ function StudioApp() {
                   />
                 </div>
 
-                <div ref={inspectorRef} className="workspace-inspector">
+                <div className="workspace-inspector">
                   <header className="workspace-inspector-heading">
-                    <h2>{INSPECTOR_TABS.find(({ id }) => id === inspectorTab)?.label}</h2>
+                    <h2 id="workspace-inspector-title">{INSPECTOR_TABS.find(({ id }) => id === inspectorTab)?.label}</h2>
+                    {(inspectorTab === 'reference' || inspectorTab === 'ai') && (
+                      <div className="editor-device-tools" aria-label="Additional editing tools">
+                        <AstryxButton size="sm" variant="secondary" label="Reference"
+                          aria-pressed={inspectorTab === 'reference'} onClick={() => handleInspectorTabChange('reference')} />
+                        <AstryxButton size="sm" variant="secondary" label="AI tools"
+                          aria-pressed={inspectorTab === 'ai'} onClick={() => handleInspectorTabChange('ai')} />
+                      </div>
+                    )}
                   </header>
 
                   <InspectorPanel tab="captions" activeTab={inspectorTab}>
@@ -933,6 +1053,29 @@ function StudioApp() {
                     />
                   </InspectorPanel>
                 </div>
+
+                <div className="editor-timeline">
+                  <StudioTimelineBar
+                    videoLoaded={Boolean(videoUrl)}
+                    duration={duration}
+                    currentTime={currentTime}
+                    trimStart={trimStart}
+                    trimEnd={trimEnd}
+                    isPlaying={isPlaying}
+                    loopClip={loopClip}
+                    captions={captions}
+                    previewLabel={previewStyleState?.label ?? null}
+                    onTogglePlay={() => void handleTogglePlay()}
+                    onToggleLoop={() => setLoopClip((prev) => !prev)}
+                    onSeekTo={handleSeekTo}
+                    onEditActiveCue={(cue) => {
+                      videoRef.current?.pause();
+                      voiceAudioRef.current?.pause();
+                      setIsPlaying(false);
+                      setEditingCue(cue);
+                    }}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -947,7 +1090,7 @@ function StudioApp() {
               activeProjectId={activeProjectId}
               onSignIn={() => void signInWithGoogle()}
               onSignOut={() => void signOutUser()}
-              onNewProject={handleNewProject}
+              onNewProject={() => navigate('gallery')}
               onOpenProject={(proj) => void handleOpenCloudProject(proj)}
               onDeleteProject={async (projectId) => {
                 if (!user) return;
@@ -959,7 +1102,7 @@ function StudioApp() {
 
           {activeView === 'deploy' && <DeployGuideView capabilities={capabilities} />}
 
-          {activeView === 'guide' && <HowItWorksView onOpenStudio={() => navigate('studio')} />}
+          {activeView === 'guide' && <HowItWorksView onOpenStudio={() => navigate('gallery')} />}
         </main>
 
         <Toaster theme="dark" position={isCompact ? 'top-center' : 'bottom-right'} />

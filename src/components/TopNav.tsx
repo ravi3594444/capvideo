@@ -2,10 +2,11 @@ import { Button } from '@astryxdesign/core/Button';
 import { Captions, CloudUpload, LogIn } from 'lucide-react';
 import type { User } from 'firebase/auth';
 
-export type AppView = 'landing' | 'studio' | 'projects' | 'deploy' | 'guide';
+export type AppView = 'landing' | 'gallery' | 'studio' | 'projects' | 'deploy' | 'guide';
 
 export const VIEW_HREFS: Record<AppView, string> = {
   landing: '/',
+  gallery: '/gallery',
   studio: '/studio',
   projects: '/#projects',
   deploy: '/#deploy',
@@ -22,7 +23,8 @@ interface TopNavProps {
 }
 
 const navItems = [
-  { id: 'studio', label: 'Studio' },
+  { id: 'gallery', label: 'Gallery' },
+  { id: 'studio', label: 'Workspace' },
   { id: 'projects', label: 'Projects' },
   { id: 'guide', label: 'Help' },
 ] as const;
@@ -31,7 +33,7 @@ export function TopNav({ activeView, onNavigate, user, authLoading, savingProjec
   const saveProject = Boolean(user) && activeView === 'studio';
 
   return (
-    <header className="workspace-nav glassy-chrome">
+    <header className={`workspace-nav glassy-chrome${activeView === 'studio' ? ' workspace-nav-editor' : ''}`}>
       <div className="workspace-nav-inner">
         <a href="/" className="workspace-brand" onClick={(event) => {
           event.preventDefault();
@@ -41,7 +43,7 @@ export function TopNav({ activeView, onNavigate, user, authLoading, savingProjec
           <span>Caption Lite</span>
         </a>
         <nav aria-label="Main navigation" className="workspace-nav-links">
-          {navItems.map(({ id, label }) => (
+          {navItems.filter(({ id }) => activeView !== 'landing' || id !== 'studio').map(({ id, label }) => (
             <a key={id} href={VIEW_HREFS[id]} aria-current={activeView === id ? 'page' : undefined}
               onClick={(event) => {
                 event.preventDefault();

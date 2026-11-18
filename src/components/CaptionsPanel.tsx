@@ -915,7 +915,7 @@ export function CaptionsPanel({
           </div>
         ) : (
           <div className="space-y-2.5">
-            <div className="rounded-xl border border-border/80 divide-y divide-border/70 lg:max-h-[520px] lg:overflow-y-auto scroll-contain bg-background/30">
+            <div className="divide-y divide-border/70 bg-background/30">
               {sortedCaptions.map((cue, index) => {
                 const isActive = currentTime >= cue.start && currentTime < cue.end;
                 const cueWords = cue.text.trim() ? cue.text.trim().split(/\s+/) : [];

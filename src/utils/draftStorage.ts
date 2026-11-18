@@ -18,9 +18,12 @@ import {
   type WordsPerPage,
 } from './captions';
 
+const RECENT_DRAFTS_KEY = 'caption-lite:recent-drafts:v1';
+
 export const DRAFT_STORAGE_KEY = 'caption-lite:studio-draft:v1';
 
 export interface StudioDraft {
+  id?: string;
   projectTitle: string;
   aspect: AspectRatio;
   language: string;
@@ -128,6 +131,7 @@ export function parseStudioDraft(raw: string | null): StudioDraft | null {
     };
 
     return {
+      ...(typeof parsed.id === 'string' && parsed.id ? { id: parsed.id.slice(0, 80) } : {}),
       projectTitle:
         typeof parsed.projectTitle === 'string' && parsed.projectTitle.trim()
           ? parsed.projectTitle.slice(0, 120)
@@ -153,7 +157,7 @@ export function parseStudioDraft(raw: string | null): StudioDraft | null {
 }
 
 export function loadLocalDraft(): StudioDraft | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null;
+  if (typeof window === 'undefined') return null;
   try {
     return parseStudioDraft(window.localStorage.getItem(DRAFT_STORAGE_KEY));
   } catch {
@@ -162,7 +166,7 @@ export function loadLocalDraft(): StudioDraft | null {
 }
 
 export function saveLocalDraft(draft: StudioDraft): void {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+  if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(DRAFT_STORAGE_KEY, serializeStudioDraft(draft));
   } catch {
@@ -171,10 +175,31 @@ export function saveLocalDraft(draft: StudioDraft): void {
 }
 
 export function clearLocalDraft(): void {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+  if (typeof window === 'undefined') return;
   try {
     window.localStorage.removeItem(DRAFT_STORAGE_KEY);
   } catch {
     // ignore
+  }
+}
+
+export function loadRecentDrafts(): StudioDraft[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const records: unknown = JSON.parse(window.localStorage.getItem(RECENT_DRAFTS_KEY) || '[]');
+    if (!Array.isArray(records)) return [];
+    return records
+      .map((record) => parseStudioDraft(JSON.stringify(record)))
+      .filter((draft): draft is StudioDraft => Boolean(draft?.id));
+  } catch {
+    return [];
+  }
+}
+
+export function saveRecentDrafts(drafts: StudioDraft[]): void {
+  try {
+    window.localStorage.setItem(RECENT_DRAFTS_KEY, JSON.stringify(drafts));
+  } catch {
+    // The current draft can still be saved under its existing key.
   }
 }
