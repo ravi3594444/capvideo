@@ -18,6 +18,12 @@ interface DeployGuideViewProps {
 
 const ENV_ROWS = [
   {
+    key: 'Upstash Redis',
+    purpose: 'Shared daily request and upload limits',
+    required: 'Required for AI tools',
+    statusKey: 'quotaStorage' as const,
+  },
+  {
     key: 'DEEPGRAM_API_KEY',
     purpose: 'Server-side audio transcription with word-level timestamps via Deepgram Nova-2 (/api/transcribe)',
     required: 'Required for Auto-Captions',
@@ -34,8 +40,12 @@ const ENV_ROWS = [
 const ENV_SNIPPET = `# Vercel Project Settings -> Environment Variables (Server-side only, never VITE_ or NEXT_PUBLIC_)
 DEEPGRAM_API_KEY="dg_your_deepgram_server_key"
 INCEPTION_API_KEY="inc_your_inception_mercury3_key"
-FIREBASE_SERVICE_ACCOUNT_JSON="YOUR_FIREBASE_SERVICE_ACCOUNT_JSON"
-# Connect a private Vercel Blob store to set BLOB_READ_WRITE_TOKEN for larger clips.`;
+# Supplied by the Upstash Redis connection. Use a read/write token.
+UPSTASH_REDIS_REST_URL="https://your-database.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="your_redis_rest_token"
+# KV_REST_API_URL and KV_REST_API_TOKEN also work as a pair.
+# Optional private Vercel Blob for larger clips. The connection supplies
+# BLOB_STORE_ID (with Vercel OIDC) or BLOB_READ_WRITE_TOKEN.`;
 
 export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
   const [copied, setCopied] = useState(false);
@@ -57,7 +67,7 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
           Vercel Backend API Keys &amp; Firebase Setup
         </h1>
         <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
-          All transcription (Deepgram Nova-2) and caption refinement (Inception Mercury 3) API keys remain strictly on your backend via server proxy routes (<code className="font-mono">/api/transcribe</code> and <code className="font-mono">/api/captions/refine</code>). Add these secrets in Vercel Project Settings → Environment Variables.
+          Connect Upstash Redis for shared AI limits and enable the providers you want to use. The API verifies Google sign-ins for the Firebase project in <code className="font-mono">firebase-applet-config.json</code> using Google’s public signing keys. You can remove <code className="font-mono">FIREBASE_SERVICE_ACCOUNT_JSON</code> from this project’s Vercel settings.
         </p>
       </div>
 
@@ -66,10 +76,10 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
           <div className="flex items-center justify-between gap-3">
             <div>
               <CardTitle className="font-display text-base">
-                01. Backend Environment Variables (Secrets)
+                AI service status
               </CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                AI provider readiness
+                Server configuration reported by <code className="font-mono">/api/capabilities</code>
               </CardDescription>
             </div>
           </div>
@@ -78,7 +88,7 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-5">Variable name</TableHead>
+                <TableHead className="px-5">Service or variable</TableHead>
                 <TableHead className="px-5">What it powers</TableHead>
                 <TableHead className="px-5">Requirement</TableHead>
                 <TableHead className="px-5 text-right">Current server</TableHead>
@@ -125,7 +135,7 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="font-display text-base">
-              02. Ready-to-paste Vercel Environment Template
+              Production environment variables
             </CardTitle>
             <Button
               type="button"
@@ -158,25 +168,27 @@ export function DeployGuideView({ capabilities }: DeployGuideViewProps) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-base">
-            03. Firebase Auth Domain Allowlist for Vercel
+            Connect the Production services
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ol className="list-decimal pl-5 space-y-2 text-sm text-muted-foreground leading-relaxed">
             <li>
-              Enable Web Analytics in the Vercel project dashboard, then deploy. Connect a private Blob store for clips over 4 MB.
+              In Vercel Marketplace, open <strong className="text-foreground">Upstash Redis</strong> and install it. Create or select a Redis database, open its <strong className="text-foreground">Settings</strong>, and connect it to the Caption Lite project for <strong className="text-foreground">Production</strong>. Use the same database for every Production instance and keep Redis eviction disabled. Use a separate database for Preview if you enable AI there.
             </li>
             <li>
-              Your Firebase Web SDK config (<code className="font-mono">firebase-applet-config.json</code>) is already bundled safely for client-side Auth &amp; Firestore — Firebase Web API keys are public identifiers secured by your <code className="font-mono">firestore.rules</code>.
+              In Vercel Project Settings → Environment Variables, confirm Production has <code className="font-mono">UPSTASH_REDIS_REST_URL</code> and <code className="font-mono">UPSTASH_REDIS_REST_TOKEN</code>. If the integration uses <code className="font-mono">KV_REST_API_URL</code> and <code className="font-mono">KV_REST_API_TOKEN</code>, keep that pair. If neither pair was added, copy the REST URL and read/write token from Upstash into the first pair.
             </li>
             <li>
-              Once deployed to Vercel, copy your production domain (e.g. <code className="font-mono">your-app.vercel.app</code>) and add it in{' '}
-              <strong className="text-foreground">Firebase Console → Authentication → Settings → Authorized domains</strong> so Google Sign-In popups work on your live domain.
+              Keep <code className="font-mono">DEEPGRAM_API_KEY</code> in Production for Auto-caption and voiceover. Add <code className="font-mono">INCEPTION_API_KEY</code> for optional refinement. For clips over 4 MB, connect a private Vercel Blob store to Production.
             </li>
             <li>
-              Keep <code className="font-mono">DEEPGRAM_API_KEY</code> and <code className="font-mono">INCEPTION_API_KEY</code> strictly on the backend (never prefix them with <code className="font-mono">VITE_</code> or <code className="font-mono">NEXT_PUBLIC_</code>).
+              Keep your live domain in <strong className="text-foreground">Firebase Console → Authentication → Settings → Authorized domains</strong> for Google Sign-In. Redeploy after saving the Production settings. Check <code className="font-mono">/api/capabilities</code> for <code className="font-mono">quotaStorage</code> and the enabled providers, then sign in with Google and try Auto-caption.
             </li>
           </ol>
+          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+            Quotas reset at midnight UTC. The defaults are 10 AI requests and 5 upload grants per user, and 100 AI requests and 50 upload grants total. The four <code className="font-mono">AI_DAILY_*</code> settings in <code className="font-mono">.env.example</code> can override those limits.
+          </p>
         </CardContent>
       </Card>
     </div>

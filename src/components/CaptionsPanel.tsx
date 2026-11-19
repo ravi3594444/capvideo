@@ -72,6 +72,7 @@ import {
 } from '../../shared/transcription';
 
 export interface ServerCapabilities {
+  quotaStorage: boolean;
   deepgram: boolean;
   inception: boolean;
   largeUploads: boolean;
