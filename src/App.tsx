@@ -249,6 +249,7 @@ function StudioApp() {
       .then((data) => {
         if (data) {
           setCapabilities({
+            quotaStorage: Boolean(data.quotaStorage),
             deepgram: Boolean(data.deepgram),
             inception: Boolean(data.inception),
             largeUploads: Boolean(data.largeUploads),

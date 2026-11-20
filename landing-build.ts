@@ -4,6 +4,7 @@ import { PRODUCT_SUMMARY } from './src/utils/publicContent.ts';
 
 export function renderLanding(html: string, head: string, escape: (value: string) => string): string {
   const styles = fs.readFileSync(new URL('./src/landing.css', import.meta.url), 'utf8');
+  const motion = fs.readFileSync(new URL('./src/landing-motion.js', import.meta.url), 'utf8');
   const examples = LANDING_EXAMPLES.map(([, alt, caption, style, format], index) => {
     const angle = index / LANDING_EXAMPLES.length * 360;
     const position = `${index % 5 * 25}% ${Math.floor(index / 5) * 100 / 3}%`;
@@ -34,15 +35,17 @@ export function renderLanding(html: string, head: string, escape: (value: string
       <a class="home-account" href="/projects">My account</a>
     </header>
     <main>
-      <section class="showcase" aria-labelledby="landing-title">
-        <div class="showcase-copy">
-          <h1 id="landing-title">Add captions<br>to your videos.</h1>
-          <p>Style captions for Reels, Shorts, and TikToks.</p>
-          <div class="showcase-actions"><a class="home-button" href="/gallery">Open Gallery <span aria-hidden="true">→</span></a>
-            <a href="#styles">See caption styles <span aria-hidden="true">↓</span></a></div>
+      <section class="showcase" id="styles" aria-labelledby="landing-title">
+        <div class="showcase-stage">
+          <div class="showcase-copy">
+            <h1 id="landing-title">Add captions<br>to your videos.</h1>
+            <p>Style captions for Reels, Shorts, and TikToks.</p>
+            <div class="showcase-actions"><a class="home-button" href="/gallery">Open Gallery <span aria-hidden="true">→</span></a>
+              <a href="#styles">See caption styles <span aria-hidden="true">↓</span></a></div>
+          </div>
+          <div class="showcase-ring" role="group" aria-label="Caption style examples">${examples}</div>
+          <a class="showcase-scroll" href="#features">↓ Scroll to explore</a>
         </div>
-        <div class="showcase-ring" id="styles" role="group" aria-label="Caption style examples">${examples}</div>
-        <a class="showcase-scroll" href="#features">↓ Scroll to explore</a>
       </section>
       <section class="home-features" id="features" aria-labelledby="features-title">
         <h2 id="features-title">Free online video caption editor</h2>
@@ -72,6 +75,7 @@ export function renderLanding(html: string, head: string, escape: (value: string
       document.querySelector('.showcase-actions a[href="#styles"]').addEventListener('click', () => {
         document.querySelector('.showcase-card').focus({ preventScroll: true });
       });
+      ${motion}
       ${analytics}
     </script>`;
 

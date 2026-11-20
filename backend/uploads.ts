@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { BlobNotFoundError, del, head, issueSignedToken, presignUrl } from '@vercel/blob';
 import type { Request, Response } from 'express';
-import { aiUserKey, allowAiUsage } from './firebase.js';
+import { aiUserKey } from './firebase.js';
+import { allowAiUsage } from './quota.js';
 import { MAX_TRANSCRIPTION_BYTES, TRANSCRIPTION_CONTENT_TYPES } from '../shared/transcription.js';
 
 export function blobReady() {

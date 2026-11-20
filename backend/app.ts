@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import multer from 'multer';
-import { allowAiUsage, firebaseReady, requireAiUser } from './firebase.js';
+import { requireAiUser } from './firebase.js';
+import { allowAiUsage, quotaReady, requireAiQuota } from './quota.js';
 import { blobReady, createTranscriptionUpload, prepareTranscriptionUpload, removeTranscriptionUpload } from './uploads.js';
 import { DIRECT_TRANSCRIPTION_BYTES, TRANSCRIPTION_CONTENT_TYPES } from '../shared/transcription.js';
 
@@ -10,20 +11,25 @@ const upload = multer({
 });
 
 const app = express();
+const aiAccess = [requireAiUser, requireAiQuota];
 app.disable('x-powered-by');
 app.use(express.json({ limit: '200kb' }));
 
 app.get('/api/capabilities', (_req: Request, res: Response) => {
+  const quotaStorage = quotaReady();
+  const deepgram = quotaStorage && Boolean(process.env.DEEPGRAM_API_KEY);
+  res.setHeader('Cache-Control', 'no-store');
   res.json({
-    deepgram: firebaseReady() && Boolean(process.env.DEEPGRAM_API_KEY),
-    inception: firebaseReady() && Boolean(process.env.INCEPTION_API_KEY),
-    largeUploads: firebaseReady() && Boolean(process.env.DEEPGRAM_API_KEY) && blobReady(),
+    quotaStorage,
+    deepgram,
+    inception: quotaStorage && Boolean(process.env.INCEPTION_API_KEY),
+    largeUploads: deepgram && blobReady(),
   });
 });
 
-app.post('/api/transcription-upload', requireAiUser, createTranscriptionUpload);
+app.post('/api/transcription-upload', aiAccess, createTranscriptionUpload);
 
-app.post('/api/transcribe', requireAiUser, upload.single('file'), async (req: Request, res: Response) => {
+app.post('/api/transcribe', aiAccess, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
@@ -83,7 +89,7 @@ app.post('/api/transcribe', requireAiUser, upload.single('file'), async (req: Re
   }
 });
 
-app.post('/api/captions/refine', requireAiUser, async (req: Request, res: Response) => {
+app.post('/api/captions/refine', aiAccess, async (req: Request, res: Response) => {
   try {
     const { texts, action, targetLanguage } = req.body || {};
     if (!Array.isArray(texts) || texts.length === 0) {
@@ -227,7 +233,7 @@ const ALLOWED_DEEPGRAM_VOICES = new Set([
   'aura-arcas-en',
 ]);
 
-app.post('/api/voiceover', requireAiUser, async (req: Request, res: Response) => {
+app.post('/api/voiceover', aiAccess, async (req: Request, res: Response) => {
   try {
     const rawText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     const requestedVoice = typeof req.body?.voice === 'string' ? req.body.voice.trim() : 'aura-2-thalia-en';

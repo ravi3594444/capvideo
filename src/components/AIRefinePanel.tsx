@@ -205,7 +205,7 @@ export function AIRefinePanel({
               ? 'Checking server…'
               : capabilities.deepgram
                 ? 'Deepgram Voice ready'
-                : 'Needs DEEPGRAM_API_KEY'}
+                : capabilities.quotaStorage ? 'Needs DEEPGRAM_API_KEY' : 'Needs Upstash Redis'}
           </span>
         </div>
 
@@ -360,7 +360,7 @@ export function AIRefinePanel({
               ? 'Checking server…'
               : capabilities.inception
                 ? 'Mercury 3 ready'
-                : 'Needs INCEPTION_API_KEY'}
+                : capabilities.quotaStorage ? 'Needs INCEPTION_API_KEY' : 'Needs Upstash Redis'}
           </span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">

@@ -28,13 +28,18 @@ a:focus-visible, button:focus-visible { outline: 2px solid #e7fa69; outline-offs
 .showcase {
   --radius: min(39vw, 34svh);
   --card: clamp(29px, min(7.8vw, 8.5svh), 70px);
+  --stage-height: max(440px, calc(100svh - 64px));
+}
+.showcase-stage {
   display: grid;
   place-items: center;
   position: relative;
   isolation: isolate;
-  min-height: max(440px, calc(100svh - 64px));
+  min-height: var(--stage-height);
   overflow: clip;
 }
+.showcase[data-motion] { min-height: calc(var(--stage-height) + 160svh); }
+.showcase[data-motion] .showcase-stage { position: sticky; top: 0; }
 .showcase-copy { position: relative; z-index: 1; text-align: center; pointer-events: none; }
 .showcase-copy h1 { margin: 0; font-size: clamp(29px, min(6vw, 7.5svh), 56px); font-weight: 450; letter-spacing: -.07em; line-height: 1; }
 .showcase-copy p { margin: 12px auto 0; max-width: 31ch; color: #b4b4b4; font-size: clamp(12px, 1.3vw, 15px); line-height: 1.45; }
@@ -45,6 +50,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid #e7fa69; outline-offs
 .showcase-actions a:not(.home-button) { color: #b4b4b4; }
 .showcase-actions a:not(.home-button):hover { color: #fff; }
 .showcase-ring { position: absolute; inset: 0; pointer-events: none; }
+.showcase-ring::before { content: ''; position: absolute; width: var(--radius); }
 .showcase-card {
   position: absolute;
   inset: 50% auto auto 50%;
@@ -97,7 +103,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid #e7fa69; outline-offs
   .home-header { grid-template-columns: 1fr auto; min-height: 82px; gap: 0 10px; }
   .home-header nav { grid-column: 1 / -1; grid-row: 2; }
   .home-account { grid-column: 2; grid-row: 1; }
-  .showcase { min-height: max(440px, calc(100svh - 82px)); }
+  .showcase { --stage-height: max(440px, calc(100svh - 82px)); }
   .showcase-copy { width: min(68vw, 245px); }
   .showcase-copy h1 { font-size: clamp(25px, 7.4vw, 42px); }
   .showcase-copy p { max-width: 22ch; }
