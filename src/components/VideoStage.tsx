@@ -23,6 +23,7 @@ import {
   findPreviousCaption,
   formatSec,
   isWordSpotlightKey,
+  STYLE_PREVIEW_SAMPLE,
   type AspectRatio,
   type CaptionCue,
   type StyleConfig,
@@ -31,8 +32,8 @@ import { CaptionOverlay } from './CaptionOverlay';
 import { SubjectForeground } from './SubjectForeground';
 import type { NoiseCleanStrength } from '../utils/audioEngine';
 
-function VideoCaptionOverlay({ videoRef, videoUrl, captions, styleConfig, currentTime, onSelectCueForEdit }: Pick<
-  VideoStageProps, 'videoRef' | 'videoUrl' | 'captions' | 'styleConfig' | 'currentTime' | 'onSelectCueForEdit'
+function VideoCaptionOverlay({ videoRef, videoUrl, captions, styleConfig, stylePreviewCue, currentTime, onSelectCueForEdit }: Pick<
+  VideoStageProps, 'videoRef' | 'videoUrl' | 'captions' | 'styleConfig' | 'stylePreviewCue' | 'currentTime' | 'onSelectCueForEdit'
 >) {
   const [frameTime, setFrameTime] = useState<number | null>(null);
 
@@ -73,18 +74,25 @@ function VideoCaptionOverlay({ videoRef, videoUrl, captions, styleConfig, curren
   }, [videoRef, videoUrl]);
 
   const time = frameTime ?? currentTime;
-  const cue = findActiveCaption(captions, time);
+  const activeCue = findActiveCaption(captions, time);
+  const previewCue = frameTime === null && !activeCue?.text.trim() ? stylePreviewCue : null;
+  const cue = previewCue ?? activeCue;
   if (!cue) return null;
 
   return (
-    <CaptionOverlay
-      cue={cue}
-      previousCue={styleConfig.pageLayout === 'stack' ? findPreviousCaption(captions, cue) : null}
-      currentTime={time}
-      config={styleConfig}
-      fitHeight
-      onEdit={onSelectCueForEdit}
-    />
+    <>
+      <CaptionOverlay
+        cue={cue}
+        previousCue={styleConfig.pageLayout === 'stack' ? findPreviousCaption(captions, cue) : null}
+        currentTime={previewCue ? cue.start + (cue.end - cue.start) * 0.55 : time}
+        config={styleConfig}
+        fitHeight
+        onEdit={cue === STYLE_PREVIEW_SAMPLE ? undefined : onSelectCueForEdit}
+      />
+      {previewCue && <span className="pointer-events-none absolute right-2 top-2 z-[2] rounded bg-black/75 px-2 py-1 text-[11px] text-white">
+        Style preview
+      </span>}
+    </>
   );
 }
 
@@ -100,6 +108,7 @@ interface VideoStageProps {
   aspect: AspectRatio;
   captions: CaptionCue[];
   styleConfig: StyleConfig;
+  stylePreviewCue: CaptionCue | null;
   previewLabel?: string | null;
   improveAudio: boolean;
   noiseStrength: NoiseCleanStrength;
@@ -140,6 +149,7 @@ export function VideoStage({
   aspect,
   captions,
   styleConfig,
+  stylePreviewCue,
   previewLabel = null,
   improveAudio,
   noiseStrength,
@@ -186,9 +196,9 @@ export function VideoStage({
 
   const stageAspectClass =
     aspect === 'r916'
-      ? 'aspect-[9/16] max-w-[min(320px,calc(52svh*0.5625))] lg:max-w-[min(290px,calc(48svh*0.5625))]'
+      ? 'aspect-[9/16] max-w-[min(350px,calc(58svh*0.5625))] lg:max-w-[min(330px,calc(54svh*0.5625))]'
       : aspect === 'r11'
-        ? 'aspect-square max-w-[min(400px,52svh)] lg:max-w-[min(400px,48svh)]'
+        ? 'aspect-square max-w-[min(440px,58svh)] lg:max-w-[min(440px,54svh)]'
         : 'aspect-video max-w-full';
 
   const handleOpenActiveFix = () => {
@@ -397,6 +407,7 @@ export function VideoStage({
                 captions={captions}
                 currentTime={currentTime}
                 styleConfig={styleConfig}
+                stylePreviewCue={stylePreviewCue}
                 onSelectCueForEdit={onSelectCueForEdit}
               />
             )}

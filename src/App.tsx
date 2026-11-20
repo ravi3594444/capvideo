@@ -41,7 +41,7 @@ import {
   commitCaptionHistory,
   createCaptionHistory,
   DEFAULT_STYLE_CONFIG,
-  findActiveCaption,
+  findStylePreviewCaption,
   parseSrt,
   redoCaptionHistory,
   toggleCueKeyWord,
@@ -165,7 +165,6 @@ function StudioApp() {
   );
 
   const stageStyleConfig = previewStyleState?.config ?? styleConfig;
-  const activeSampleCue = findActiveCaption(captionHistory.present, 0) ?? captionHistory.present[0] ?? null;
 
   const captions = captionHistory.present;
   const canUndo = captionHistory.past.length > 0;
@@ -195,6 +194,7 @@ function StudioApp() {
   const [fileInfo, setFileInfo] = useState('No video yet');
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const stylePreviewCue = inspectorTab === 'style' ? findStylePreviewCaption(captions, currentTime) : null;
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -856,6 +856,7 @@ function StudioApp() {
                     aspect={aspect}
                     captions={captions}
                     styleConfig={stageStyleConfig}
+                    stylePreviewCue={isCompact && mobilePane === 'preview' ? null : stylePreviewCue}
                     previewLabel={previewStyleState?.label ?? null}
                     improveAudio={improveAudio}
                     noiseStrength={noiseStrength}
@@ -972,10 +973,13 @@ function StudioApp() {
                       styleConfig={styleConfig}
                       previewConfig={previewStyleState?.config ?? null}
                       previewLabel={previewStyleState?.label ?? null}
-                      sampleCue={findActiveCaption(captions, currentTime) ?? activeSampleCue}
+                      sampleCue={stylePreviewCue}
                       presets={cloudPresets}
                       signedIn={Boolean(user)}
-                      onChange={setStyleConfig}
+                      onChange={(next) => {
+                        setPreviewStyleState(null);
+                        setStyleConfig(next);
+                      }}
                       onPreviewChange={(next, label) => {
                         if (!next) {
                           setPreviewStyleState(null);

@@ -15,6 +15,7 @@ import {
   DEFAULT_STYLE_CONFIG,
   encodeWav16kMono,
   findActiveCaption,
+  findStylePreviewCaption,
   formatSec,
   formatSrtTime,
   getActiveWordIndex,
@@ -22,6 +23,7 @@ import {
   getCaptionBlockMotion,
   getCaptionDisplayRows,
   getCaptionFit,
+  getCaptionFontStack,
   getCaptionPlacement,
   getDepthRowAppearance,
   getCaptionContainerSpec,
@@ -34,6 +36,7 @@ import {
   shiftCaptions,
   snapCueStartToTime,
   splitCaption,
+  STYLE_PREVIEW_SAMPLE,
   undoCaptionHistory,
 } from './captions';
 import { parseStudioDraft, serializeStudioDraft } from './draftStorage';
@@ -476,6 +479,30 @@ test('custom text height fits without changing width and caption placement stays
   const legacy = parseStudioDraft(JSON.stringify({ styleConfig: DEFAULT_STYLE_CONFIG, captions: [] }));
   assert.equal(legacy?.styleConfig.textHeight, 100);
   assert.equal(legacy?.styleConfig.verticalPosition, undefined);
+});
+
+test('style preview selects a nearby caption outside timed playback', () => {
+  const opening = { id: 'one', start: 1, end: 2, text: 'Opening caption' };
+  const closing = { id: 'two', start: 4, end: 5, text: 'Closing caption' };
+  const blank = { id: 'blank', start: 2, end: 4, text: '   ' };
+  const cues = [closing, opening, blank];
+  assert.equal(findStylePreviewCaption(cues, 0), opening);
+  assert.equal(findStylePreviewCaption(cues, 1.5), opening);
+  assert.equal(findStylePreviewCaption(cues, 3.75), closing);
+  assert.equal(findStylePreviewCaption(cues, 5), closing);
+  assert.equal(findStylePreviewCaption([blank], 3), STYLE_PREVIEW_SAMPLE);
+  assert.equal(findActiveCaption(cues, 5), null);
+});
+
+test('the font picker overrides single-font styles and keeps font-switch accents', () => {
+  const word = { word: 'Hello', wordIndex: 0, activeWordIndex: 0, accentColor: '#ffd60a' };
+  for (const style of ['st-behind-subject', 'st-editorial', 'st-typewriter', 'st-hormozi'] as const) {
+    const chosen = getWordVisualSpec({ ...word, style, fontFamily: 'system' });
+    assert.equal(chosen.fontCss, getCaptionFontStack('system'));
+  }
+  assert.equal(getWordVisualSpec({ ...word, style: 'st-editorial' }).fontCss, getCaptionFontStack('editorial'));
+  assert.equal(getWordVisualSpec({ ...word, style: 'st-font-switch', fontFamily: 'mono' }).fontCss, getCaptionFontStack('editorial'));
+  assert.equal(getWordVisualSpec({ ...word, style: 'st-font-switch', fontFamily: 'mono', activeWordIndex: 1 }).fontCss, getCaptionFontStack('mono'));
 });
 
 test('depth captions drift as a large, two-tone stack and hero motion follows a marked word', () => {
