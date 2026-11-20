@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import {
+  clampTextHeight,
   clampWordSpacing,
   getCaptionWordClock,
   getCaptionBlockMotion,
@@ -7,6 +8,8 @@ import {
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
   getCaptionDisplayRows,
+  getCaptionFit,
+  getCaptionPlacement,
   getDepthRowAppearance,
   getWordVisualSpec,
   isNegativeEmphasisWord,
@@ -30,26 +33,32 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
   const words = cue.text.trim().split(/\s+/).filter(Boolean);
   const contentRef = useRef<HTMLSpanElement>(null);
   const hasWords = words.length > 0;
+  const placement = getCaptionPlacement(config);
+  const heightScale = clampTextHeight(config.textHeight) / 100;
 
   useLayoutEffect(() => {
     const content = contentRef.current;
     const frame = content?.parentElement?.parentElement;
     const depth = config.style === 'st-behind-subject';
-    if ((!fitHeight && !depth) || !content || !frame) return;
-    const safeHeight = config.position === 'pos-third' ? 0.72 : 0.92;
+    if ((!fitHeight && !depth && heightScale === 1 && config.verticalPosition === undefined) || !content || !frame) return;
     const fit = () => {
-      const available = Math.max(0, frame.clientHeight * safeHeight - 8);
+      const available = Math.max(0, frame.clientHeight * placement.safeHeight - 8);
       const width = depth ? Math.max(1, ...Array.from(content.querySelectorAll<HTMLElement>('.cap-row'), row => row.scrollWidth)) : 1;
-      const ratio = Math.min(1, available / Math.max(1, content.offsetHeight), frame.clientWidth * 0.88 / width);
-      content.style.setProperty('--caption-fit', String(ratio));
+      const { x, y } = getCaptionFit(width, content.offsetHeight, frame.clientWidth * 0.88, available, heightScale);
+      content.style.setProperty('--caption-fit-x', String(x));
+      content.style.setProperty('--caption-fit-y', String(y));
     };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(content);
     observer.observe(frame);
     if (depth) content.querySelectorAll('.cap-row').forEach(row => observer.observe(row));
-    return () => observer.disconnect();
-  }, [config.position, config.style, config.wordsPerPage, cue.text, fitHeight, hasWords]);
+    return () => {
+      observer.disconnect();
+      content.style.removeProperty('--caption-fit-x');
+      content.style.removeProperty('--caption-fit-y');
+    };
+  }, [config.style, config.verticalPosition, config.wordsPerPage, cue.text, fitHeight, hasWords, heightScale, placement.safeHeight]);
 
   if (!hasWords) return null;
 
@@ -75,9 +84,12 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
       data-testid={onEdit ? 'caption-overlay' : undefined}
       className={`cap-overlay ${config.position} ${config.style}`}
       style={{
+        top: `${placement.anchor * 100}%`,
+        transform: `translateY(${-placement.origin * 100}%)`,
         fontSize: `min(calc(${config.fontSize * block.fontScale} * var(--caption-font-unit, 1px)), calc(var(--caption-max-font, 1000px) * ${block.fontScale}))`,
         '--caption-block-scale': block.blockScale,
         '--caption-shift': `${block.shift * 100}%`,
+        '--caption-origin': `${placement.origin * 100}%`,
         mixBlendMode: config.blendMode === 'difference' ? 'difference' : undefined,
       } as CSSProperties}
     >

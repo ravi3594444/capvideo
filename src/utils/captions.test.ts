@@ -6,6 +6,8 @@ import {
   captionsFromText,
   captionsFromWords,
   classifyDroppedFile,
+  clampTextHeight,
+  clampVerticalPosition,
   commitCaptionHistory,
   createCaptionHistory,
   createNextCue,
@@ -19,6 +21,8 @@ import {
   getCaptionWordClock,
   getCaptionBlockMotion,
   getCaptionDisplayRows,
+  getCaptionFit,
+  getCaptionPlacement,
   getDepthRowAppearance,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
@@ -452,6 +456,27 @@ test('clampWordSpacing bounds values and parseStudioDraft persists wordSpacing c
 
 
 
+
+test('custom text height fits without changing width and caption placement stays within safe margins', () => {
+  assert.equal(clampTextHeight(undefined), 100);
+  assert.equal(clampTextHeight(220), 180);
+  assert.equal(clampVerticalPosition(-10), 0);
+  assert.equal(clampVerticalPosition(NaN), undefined);
+  assert.deepEqual(getCaptionFit(100, 80, 160, 100, 1.8), { x: 1, y: 1.25 });
+  assert.deepEqual(getCaptionFit(200, 80, 100, 100, 0.6), { x: 0.5, y: 0.3 });
+  assert.deepEqual(getCaptionPlacement({ position: 'pos-centre' }), { anchor: 0.5, origin: 0.5, safeHeight: 0.92 });
+  assert.deepEqual(getCaptionPlacement({ position: 'pos-bottom', verticalPosition: 0 }), { anchor: 0.06, origin: 0, safeHeight: 0.88 });
+  assert.deepEqual(getCaptionPlacement({ position: 'pos-centre', verticalPosition: 100 }), { anchor: 0.94, origin: 1, safeHeight: 0.88 });
+
+  const draft = parseStudioDraft(JSON.stringify({
+    styleConfig: { ...DEFAULT_STYLE_CONFIG, textHeight: 155, verticalPosition: 0 }, captions: [],
+  }));
+  assert.equal(draft?.styleConfig.textHeight, 155);
+  assert.equal(draft?.styleConfig.verticalPosition, 0);
+  const legacy = parseStudioDraft(JSON.stringify({ styleConfig: DEFAULT_STYLE_CONFIG, captions: [] }));
+  assert.equal(legacy?.styleConfig.textHeight, 100);
+  assert.equal(legacy?.styleConfig.verticalPosition, undefined);
+});
 
 test('depth captions drift as a large, two-tone stack and hero motion follows a marked word', () => {
   const cue = { id: 'test', text: 'Captions behind subjects', keyWords: ['behind'], start: 0, end: 3 };

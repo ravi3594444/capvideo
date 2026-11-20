@@ -12,6 +12,12 @@ let engine: Promise<SelfieSegmentation> | undefined;
 let onResult: ((result: Results) => void) | undefined;
 let queue = Promise.resolve();
 
+const edgeAlpha = Uint8Array.from({ length: 256 }, (_, alpha) => {
+  // Remove low-confidence spill while keeping a soft edge around the subject.
+  const confidence = Math.max(0, Math.min(1, (alpha - 68) / (216 - 68)));
+  return Math.round(255 * confidence * confidence * (3 - 2 * confidence));
+});
+
 function loadRuntime() {
   runtime ??= new Promise<typeof SelfieSegmentation>((resolve, reject) => {
     // The legacy browser distribution attaches its constructor to window.
@@ -63,7 +69,8 @@ export function createSubjectMask() {
   const input = document.createElement('canvas');
   const mask = document.createElement('canvas');
   const inputContext = input.getContext('2d')!;
-  const maskContext = mask.getContext('2d')!;
+  const maskContext = mask.getContext('2d', { willReadFrequently: true })!;
+  let previousAlpha = new Uint8Array(0);
   let ready = false;
   let generation = 0;
 
@@ -80,15 +87,28 @@ export function createSubjectMask() {
         const ratio = Math.min(1, 360 / Math.max(video.videoWidth, video.videoHeight));
         const width = Math.max(1, Math.round(video.videoWidth * ratio));
         const height = Math.max(1, Math.round(video.videoHeight * ratio));
-        if (width !== input.width || height !== input.height) {
+        if (width !== input.width || height !== input.height || previousAlpha.length === 0) {
           input.width = mask.width = width;
           input.height = mask.height = height;
+          previousAlpha = new Uint8Array(width * height);
+          ready = false;
         }
         inputContext.drawImage(video, 0, 0, width, height);
         onResult = ({ segmentationMask }) => {
           if (version !== generation) return;
           maskContext.clearRect(0, 0, width, height);
           maskContext.drawImage(segmentationMask, 0, 0, width, height);
+          const pixels = maskContext.getImageData(0, 0, width, height);
+          for (let i = 0, offset = 3; i < previousAlpha.length; i++, offset += 4) {
+            const alpha = edgeAlpha[pixels.data[offset]];
+            const previous = previousAlpha[i];
+            // Stabilize small confidence changes without leaving a trail on movement.
+            const stable = ready && alpha > 0 && alpha < 255 && Math.abs(alpha - previous) < 64;
+            const refined = stable ? Math.round(alpha * 0.8 + previous * 0.2) : alpha;
+            pixels.data[offset] = refined;
+            previousAlpha[i] = refined;
+          }
+          maskContext.putImageData(pixels, 0, 0);
           ready = true;
         };
         try {
@@ -101,7 +121,7 @@ export function createSubjectMask() {
       return task;
     },
     drawForeground(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, outputWidth: number, outputHeight: number) {
-      if (!ready || video.readyState < 2) return;
+      if (!ready || video.readyState < 2) return false;
       const scale = Math.max(outputWidth / video.videoWidth, outputHeight / video.videoHeight);
       const width = video.videoWidth * scale;
       const height = video.videoHeight * scale;
@@ -112,6 +132,7 @@ export function createSubjectMask() {
       ctx.globalCompositeOperation = 'source-in';
       ctx.drawImage(video, x, y, width, height);
       ctx.globalCompositeOperation = 'source-over';
+      return true;
     },
   };
 }

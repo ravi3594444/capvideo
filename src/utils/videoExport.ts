@@ -1,4 +1,5 @@
 import {
+  clampTextHeight,
   clampWordSpacing,
   findActiveCaption,
   findPreviousCaption,
@@ -8,6 +9,8 @@ import {
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
   getCaptionDisplayRows,
+  getCaptionFit,
+  getCaptionPlacement,
   getDepthRowAppearance,
   getWordVisualSpec,
   isNegativeEmphasisWord,
@@ -220,8 +223,9 @@ export async function exportBurnedInWebM(
   const useDifference = styleConfig.blendMode === 'difference';
   const containerSpec = getCaptionContainerSpec(styleConfig.style, effectiveEffect, styleConfig.accentColor);
   const safeWidth = canvas.width * 0.88;
-  const bottomInset = styleConfig.position === 'pos-third' ? 0.26 : 0.06;
-  const safeHeight = canvas.height * (styleConfig.position === 'pos-third' ? 0.71 : 0.92);
+  const placement = getCaptionPlacement(styleConfig);
+  const safeHeight = canvas.height * placement.safeHeight;
+  const heightScale = clampTextHeight(styleConfig.textHeight) / 100;
 
   let maskPending = false;
   let lastMaskTime = -Infinity;
@@ -316,15 +320,14 @@ export async function exportBurnedInWebM(
       const rowsHeight = rows.reduce((height, row) => height + row.height, 0) + lineGap * Math.max(0, rows.length - 1);
       const previousHeight = prevCue ? fontPx * 1.12 : 0;
       const blockHeight = previousHeight + rowsHeight + backdropPadY * 2;
-      const baseFit = rows.length ? Math.min(1, safeWidth / Math.max(1, boxWidth), safeHeight / Math.max(1, blockHeight)) : 1;
-      const fit = baseFit * block.blockScale;
-      const top = styleConfig.position === 'pos-centre'
-        ? (canvas.height - blockHeight * fit) / 2
-        : canvas.height * (1 - bottomInset) - blockHeight * fit;
+      const fit = getCaptionFit(boxWidth, blockHeight, safeWidth, safeHeight, heightScale);
+      const scaleX = fit.x * block.blockScale;
+      const scaleY = fit.y * block.blockScale;
+      const top = canvas.height * placement.anchor - blockHeight * scaleY * placement.origin;
 
       ctx.save();
       ctx.translate(canvas.width * (0.5 + block.shift), top);
-      ctx.scale(fit, fit);
+      ctx.scale(scaleX, scaleY);
 
       if (prevCue) {
         ctx.save();
@@ -335,7 +338,7 @@ export async function exportBurnedInWebM(
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0,0,0,0.8)';
         ctx.shadowBlur = 6;
-        ctx.fillText(prevCue.text.trim(), 0, previousHeight / 2, safeWidth / fit);
+        ctx.fillText(prevCue.text.trim(), 0, previousHeight / 2, safeWidth / scaleX);
         ctx.restore();
       }
 
