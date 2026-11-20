@@ -12,6 +12,7 @@ import {
   getCaptionPlacement,
   getDepthRowAppearance,
   getWordVisualSpec,
+  getWordVerticalPadding,
   isNegativeEmphasisWord,
   normalizeToken,
   resolveEffectiveEffect,
@@ -137,6 +138,9 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
                 if (!scaleInLayout && spec.scale !== 1) transforms.push(`scale(${spec.scale})`);
                 if (spec.translateYEm !== 0) transforms.push(`translateY(${spec.translateYEm}em)`);
                 if (spec.rotateDeg !== 0) transforms.push(`rotate(${spec.rotateDeg}deg)`);
+                const transformScale = scaleInLayout ? 1 : spec.scale;
+                const wordWidth = Math.min(18, Array.from(spec.displayText).length) * .72 + .24;
+                const spacing = getWordVerticalPadding(wordWidth, 1.27, transformScale, spec.translateYEm * transformScale, spec.rotateDeg);
 
                 let textShadow = spec.shadowMode === 'none' ? 'none' : undefined;
                 if (spec.glitchColorShift && spec.glitchDxPx) {
@@ -152,7 +156,9 @@ export function CaptionOverlay({ cue, previousCue, currentTime, config, onEdit, 
                   color: getDepthRowAppearance(config.style, rowIndex, config.accentColor).color ?? spec.color,
                   opacity: spec.opacity,
                   backgroundColor: spec.backgroundColor ?? undefined,
-                  marginInline: !scaleInLayout && spec.scale > 1.02 ? `${((spec.scale - 1) * 0.58).toFixed(2)}em` : undefined,
+                  marginInline: transformScale > 1.02 ? `${(transformScale - 1) * wordWidth / 2}em` : undefined,
+                  marginBlockStart: spacing.above ? `${spacing.above}em` : undefined,
+                  marginBlockEnd: spacing.below ? `${spacing.below}em` : undefined,
                   transform: transforms.length ? transforms.join(' ') : undefined,
                   textShadow,
                   borderRadius: spec.borderRadiusEm == null ? undefined : `${spec.borderRadiusEm}em`,

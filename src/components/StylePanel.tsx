@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useState } from 'react';
 import { BookmarkPlus, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -36,11 +36,9 @@ import {
   type StyleConfig,
 } from '../utils/captions';
 import type { CloudStylePreset } from '../lib/firestoreService';
-import { useVideoFrame } from '../hooks/useVideoFrame';
 import { CaptionOverlay } from './CaptionOverlay';
 
 interface StylePanelProps {
-  videoRef: RefObject<HTMLVideoElement | null>;
   videoUrl: string | null;
   styleConfig: StyleConfig;
   previewConfig: StyleConfig | null;
@@ -219,7 +217,6 @@ function renderStyleSpecimen(styleId: string, accent: string, baseFontCss: strin
 }
 
 export function StylePanel({
-  videoRef,
   videoUrl,
   styleConfig,
   previewConfig,
@@ -239,7 +236,6 @@ export function StylePanel({
   const [animating, setAnimating] = useState(true);
   const [loopElapsedSec, setLoopElapsedSec] = useState(0.45);
   const [styleTab, setStyleTab] = useState<StyleBrowseTab>('signature');
-  const videoFrame = useVideoFrame(videoRef, videoUrl);
 
   const displayedConfig = previewConfig ?? styleConfig;
   const textHeight = clampTextHeight(styleConfig.textHeight);
@@ -251,7 +247,7 @@ export function StylePanel({
   const effectiveEffect = resolveEffectiveEffect(displayedConfig);
 
   useEffect(() => {
-    if (!animating) return;
+    if (videoUrl || !animating) return;
     if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
       return;
     }
@@ -262,7 +258,7 @@ export function StylePanel({
       });
     }, 60);
     return () => window.clearInterval(timer);
-  }, [animating]);
+  }, [animating, videoUrl]);
 
   const cueForPreview = sampleCue ?? STYLE_PREVIEW_SAMPLE;
   const previewCue = {
@@ -310,28 +306,16 @@ export function StylePanel({
 
   return (
     <div className="space-y-4 @container/style">
-      {/* Live Motion Audition Strip — always shows how styles/effects move BEFORE applying */}
       <div
-        data-testid="live-style-preview"
-        className="sticky top-2 md:top-[4.5rem] lg:static z-20 rounded-xl border border-border/90 bg-zinc-950 p-2.5 lg:p-3 space-y-1.5 shadow-[0_10px_24px_-12px_rgba(0,0,0,0.65)]"
+        className="rounded-lg border border-border bg-zinc-950 p-2.5 space-y-2"
       >
-        <div className="flex items-center justify-between gap-2 text-[11px]">
+        <div className="flex items-center justify-between gap-2 text-xs">
           <div className="min-w-0 flex items-center gap-2">
             <span className="font-semibold text-white truncate">
               {previewLabel ? `Previewing: ${previewLabel}` : `Applied: ${activeStyleMeta.label}`}
             </span>
-            <span className="text-zinc-400 hidden sm:inline">
-              {previewLabel ? (
-                'Click to apply'
-              ) : (
-                <>
-                  <span className="pointer-coarse:hidden">Hover card to audition</span>
-                  <span className="hidden pointer-coarse:inline">Tap card to audition</span>
-                </>
-              )}
-            </span>
           </div>
-          <Button
+          {!videoUrl && <Button
             type="button"
             variant="ghost"
             size="xs"
@@ -350,26 +334,16 @@ export function StylePanel({
                 <span>Animate</span>
               </>
             )}
-          </Button>
+          </Button>}
         </div>
 
-        <div
+        {!videoUrl && <div
+          data-testid="live-style-preview"
           className="style-inspector-preview relative h-[132px] rounded-lg border border-white/10 overflow-hidden"
-          style={
-            videoFrame
-              ? {
-                  backgroundImage: `linear-gradient(to top, rgba(0,0,0,0.5), rgba(0,0,0,0.04) 60%), url(${videoFrame})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }
-              : {
-                  background:
-                    'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), rgba(9,9,11,0.96) 75%)',
-                }
-          }
+          style={{ background: 'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), #09090b 75%)' }}
         >
           <span className="absolute left-2 top-1.5 text-[11px] text-white/75 bg-black/45 rounded px-1.5 py-0.5">
-            {videoFrame ? 'On your video' : 'Sample backdrop'}
+            Sample caption
           </span>
           <CaptionOverlay
             cue={previewCue}
@@ -377,8 +351,178 @@ export function StylePanel({
             currentTime={loopElapsedSec}
             config={{ ...displayedConfig, position: 'pos-centre' }}
           />
+        </div>}
+      </div>
+
+      <div className="space-y-3.5">
+        <div className="grid grid-cols-1 @sm/style:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="caption-font-trigger" className="text-xs font-semibold">
+              Base font
+            </Label>
+            <Select
+              value={styleConfig.fontFamily}
+              onValueChange={(val) => {
+                if (val) onChange({ ...styleConfig, fontFamily: val as CaptionFont });
+              }}
+            >
+              <SelectTrigger id="caption-font-trigger" className="w-full h-9 bg-background text-xs">
+                <SelectValue>{CAPTION_FONT_OPTIONS.find((font) => font.id === styleConfig.fontFamily)?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {CAPTION_FONT_OPTIONS.map((font) => (
+                  <SelectItem key={font.id} value={font.id}>
+                    {font.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="block text-xs font-semibold text-foreground">Position</span>
+            <div
+              role="group"
+              aria-label="Position presets"
+              className="grid grid-cols-3 rounded-lg bg-muted/70 p-0.5 border border-border"
+            >
+              {POSITION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={customPosition === undefined && styleConfig.position === opt.value}
+                  onClick={() => onChange({ ...styleConfig, position: opt.value, verticalPosition: undefined })}
+                  className={`cap-word-chip py-1.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                    customPosition === undefined && styleConfig.position === opt.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label === 'Lower third' ? 'Lower' : opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="caption-accent-color" className="text-xs font-semibold">
+              Accent colour
+            </Label>
+            <div className="flex items-center gap-2.5">
+              <input
+                id="caption-accent-color"
+                type="color"
+                value={styleConfig.accentColor}
+                onChange={(e) => onChange({ ...styleConfig, accentColor: e.target.value })}
+                className="w-11 h-9 p-1 rounded-lg border border-input bg-background cursor-pointer"
+              />
+              <span className="font-mono text-xs text-muted-foreground uppercase tabular-nums">
+                {styleConfig.accentColor}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 @md/style:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-vertical-position">Vertical position</Label>
+              <span className="font-mono text-muted-foreground tabular-nums">{customPosition ?? presetPosition}%</span>
+            </div>
+            <Slider
+              id="caption-vertical-position"
+              aria-label="Vertical position"
+              getAriaValueText={(_, value) => `${value}% down the frame`}
+              min={0}
+              max={100}
+              step={1}
+              value={[customPosition ?? presetPosition]}
+              onValueChange={(value) => onChange({
+                ...styleConfig, verticalPosition: clampVerticalPosition(typeof value === 'number' ? value : value[0]),
+              })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-text-height">Text height</Label>
+              <span className="font-mono text-muted-foreground tabular-nums">{textHeight}%</span>
+            </div>
+            <Slider
+              id="caption-text-height"
+              aria-label="Text height"
+              getAriaValueText={(_, value) => `${value}% tall`}
+              min={TEXT_HEIGHT.min}
+              max={TEXT_HEIGHT.max}
+              step={5}
+              value={[textHeight]}
+              onValueChange={(value) => onChange({
+                ...styleConfig, textHeight: clampTextHeight(typeof value === 'number' ? value : value[0]),
+              })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-font-size">Text size</Label>
+              <span className="font-mono text-muted-foreground tabular-nums">
+                {styleConfig.fontSize}px
+              </span>
+            </div>
+            <Slider
+              id="caption-font-size"
+              aria-label="Text size"
+              min={14}
+              max={38}
+              step={1}
+              value={[styleConfig.fontSize]}
+              onValueChange={(val) => {
+                const next = Array.isArray(val) ? val[0] : val;
+                if (typeof next === 'number') {
+                  onChange({ ...styleConfig, fontSize: next });
+                }
+              }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-word-spacing">Word spacing</Label>
+              <div className="flex items-center gap-2">
+                {clampWordSpacing(styleConfig.wordSpacing) !== 0.26 && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...styleConfig, wordSpacing: 0.26 })}
+                    className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 cursor-pointer"
+                    title="Reset word spacing to default (0.26em)"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" aria-hidden="true" />
+                    <span>Reset</span>
+                  </button>
+                )}
+                <span className="font-mono text-muted-foreground tabular-nums">
+                  {clampWordSpacing(styleConfig.wordSpacing).toFixed(2)}em
+                </span>
+              </div>
+            </div>
+            <Slider
+              id="caption-word-spacing"
+              aria-label="Word spacing"
+              min={0.06}
+              max={0.9}
+              step={0.02}
+              value={[clampWordSpacing(styleConfig.wordSpacing)]}
+              onValueChange={(val) => {
+                const next = Array.isArray(val) ? val[0] : val;
+                if (typeof next === 'number') {
+                  onChange({ ...styleConfig, wordSpacing: clampWordSpacing(next) });
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
+
+      <Separator />
 
       {/* Look Picker with Category Tabs (eliminates the 15-card scroll wall) */}
       <div className="space-y-2.5" onMouseLeave={() => onPreviewChange(null)}>
@@ -524,177 +668,6 @@ export function StylePanel({
             })}
           </div>
         )}
-      </div>
-
-      <Separator />
-
-      <div className="space-y-3.5">
-        <div className="grid grid-cols-1 @md/style:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <Label htmlFor="caption-font-size">Text size</Label>
-              <span className="font-mono text-muted-foreground tabular-nums">
-                {styleConfig.fontSize}px
-              </span>
-            </div>
-            <Slider
-              id="caption-font-size"
-              aria-label="Text size"
-              min={14}
-              max={38}
-              step={1}
-              value={[styleConfig.fontSize]}
-              onValueChange={(val) => {
-                const next = Array.isArray(val) ? val[0] : val;
-                if (typeof next === 'number') {
-                  onChange({ ...styleConfig, fontSize: next });
-                }
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <Label htmlFor="caption-text-height">Text height</Label>
-              <span className="font-mono text-muted-foreground tabular-nums">{textHeight}%</span>
-            </div>
-            <Slider
-              id="caption-text-height"
-              aria-label="Text height"
-              getAriaValueText={(_, value) => `${value}% tall`}
-              min={TEXT_HEIGHT.min}
-              max={TEXT_HEIGHT.max}
-              step={5}
-              value={[textHeight]}
-              onValueChange={(value) => onChange({
-                ...styleConfig, textHeight: clampTextHeight(typeof value === 'number' ? value : value[0]),
-              })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <Label htmlFor="caption-word-spacing">Word spacing</Label>
-              <div className="flex items-center gap-2">
-                {clampWordSpacing(styleConfig.wordSpacing) !== 0.26 && (
-                  <button
-                    type="button"
-                    onClick={() => onChange({ ...styleConfig, wordSpacing: 0.26 })}
-                    className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 cursor-pointer"
-                    title="Reset word spacing to default (0.26em)"
-                  >
-                    <RotateCcw className="w-2.5 h-2.5" aria-hidden="true" />
-                    <span>Reset</span>
-                  </button>
-                )}
-                <span className="font-mono text-muted-foreground tabular-nums">
-                  {clampWordSpacing(styleConfig.wordSpacing).toFixed(2)}em
-                </span>
-              </div>
-            </div>
-            <Slider
-              id="caption-word-spacing"
-              aria-label="Word spacing"
-              min={0.06}
-              max={0.9}
-              step={0.02}
-              value={[clampWordSpacing(styleConfig.wordSpacing)]}
-              onValueChange={(val) => {
-                const next = Array.isArray(val) ? val[0] : val;
-                if (typeof next === 'number') {
-                  onChange({ ...styleConfig, wordSpacing: clampWordSpacing(next) });
-                }
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <Label htmlFor="caption-vertical-position">Vertical position</Label>
-              <span className="font-mono text-muted-foreground tabular-nums">{customPosition ?? presetPosition}%</span>
-            </div>
-            <Slider
-              id="caption-vertical-position"
-              aria-label="Vertical position"
-              getAriaValueText={(_, value) => `${value}% down the frame`}
-              min={0}
-              max={100}
-              step={1}
-              value={[customPosition ?? presetPosition]}
-              onValueChange={(value) => onChange({
-                ...styleConfig, verticalPosition: clampVerticalPosition(typeof value === 'number' ? value : value[0]),
-              })}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 @sm/style:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <span className="block text-xs font-semibold text-foreground">Position</span>
-            <div
-              role="group"
-              aria-label="Position presets"
-              className="grid grid-cols-3 rounded-lg bg-muted/70 p-0.5 border border-border"
-            >
-              {POSITION_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  aria-pressed={customPosition === undefined && styleConfig.position === opt.value}
-                  onClick={() => onChange({ ...styleConfig, position: opt.value, verticalPosition: undefined })}
-                  className={`cap-word-chip py-1.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                    customPosition === undefined && styleConfig.position === opt.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {opt.label === 'Lower third' ? 'Lower' : opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="caption-font-trigger" className="text-xs font-semibold">
-              Base font
-            </Label>
-            <Select
-              value={styleConfig.fontFamily}
-              onValueChange={(val) => {
-                if (val) onChange({ ...styleConfig, fontFamily: val as CaptionFont });
-              }}
-            >
-              <SelectTrigger id="caption-font-trigger" className="w-full h-9 bg-background text-xs">
-                <SelectValue>{CAPTION_FONT_OPTIONS.find((font) => font.id === styleConfig.fontFamily)?.label}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {CAPTION_FONT_OPTIONS.map((font) => (
-                  <SelectItem key={font.id} value={font.id}>
-                    {font.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="caption-accent-color" className="text-xs font-semibold">
-              Accent colour
-            </Label>
-            <div className="flex items-center gap-2.5">
-              <input
-                id="caption-accent-color"
-                type="color"
-                value={styleConfig.accentColor}
-                onChange={(e) => onChange({ ...styleConfig, accentColor: e.target.value })}
-                className="w-11 h-9 p-1 rounded-lg border border-input bg-background cursor-pointer"
-              />
-              <span className="font-mono text-xs text-muted-foreground uppercase tabular-nums">
-                {styleConfig.accentColor}
-              </span>
-            </div>
-          </div>
-        </div>
       </div>
 
       <Separator />

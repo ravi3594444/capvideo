@@ -1,10 +1,11 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Pause, PencilLine, Play, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import {
   findActiveCaption,
   formatSec,
+  getCaptionTimelineLayout,
   type CaptionCue,
 } from '../utils/captions';
 
@@ -24,6 +25,22 @@ interface StudioTimelineBarProps {
   onEditActiveCue: (cue: CaptionCue) => void;
 }
 
+export function PlaybackScrubber({ currentTime, trimStart, trimEnd, duration, onSeekTo }: Pick<
+  StudioTimelineBarProps, 'currentTime' | 'trimStart' | 'trimEnd' | 'duration' | 'onSeekTo'
+>) {
+  const seekEnd = Math.max(trimStart + 0.2, trimEnd || duration || 1);
+  return (
+    <Slider
+      aria-label="Playback position"
+      min={trimStart}
+      max={seekEnd}
+      step={0.05}
+      value={[Math.min(Math.max(currentTime, trimStart), seekEnd)]}
+      onValueChange={value => onSeekTo(typeof value === 'number' ? value : value[0], false)}
+    />
+  );
+}
+
 export function StudioTimelineBar({
   videoLoaded,
   duration,
@@ -41,11 +58,12 @@ export function StudioTimelineBar({
 }: StudioTimelineBarProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
 
-  const sorted = captions.slice().sort((a, b) => a.start - b.start);
+  const sorted = useMemo(() => captions.slice().sort((a, b) => a.start - b.start), [captions]);
   const maxCueEnd = sorted.reduce((acc, c) => Math.max(acc, c.end), 0);
   const timelineSpan = Math.max(1, duration || 0, trimEnd || 0, maxCueEnd);
   const activeCue = findActiveCaption(sorted, currentTime);
   const activeIdx = activeCue ? sorted.findIndex((c) => c.id === activeCue.id) : -1;
+  const { clips, laneCount } = useMemo(() => getCaptionTimelineLayout(sorted, timelineSpan), [sorted, timelineSpan]);
 
   const jumpRelativeCue = (dir: -1 | 1) => {
     if (!sorted.length) return;
@@ -76,8 +94,6 @@ export function StudioTimelineBar({
     const targetTime = Math.round(ratio * timelineSpan * 100) / 100;
     onSeekTo(targetTime, false);
   };
-
-  const seekEnd = Math.max(trimStart + 0.2, trimEnd || duration || 1);
 
   if (!videoLoaded && !captions.length) {
     return (
@@ -174,65 +190,59 @@ export function StudioTimelineBar({
       </div>
 
       <div
-        ref={trackRef}
-        data-testid="phrase-timeline-track"
-        onClick={handleTrackClick}
-        className="relative h-8 rounded-lg bg-zinc-950/90 border border-border/80 overflow-hidden cursor-pointer select-none"
+        className="max-h-28 overflow-y-auto overflow-x-hidden rounded-lg border border-border/80 bg-zinc-950/90"
       >
-        {trimEnd > trimStart && timelineSpan > 0 && (
+        <div
+          ref={trackRef}
+          data-testid="phrase-timeline-track"
+          onClick={handleTrackClick}
+          className="relative cursor-pointer select-none"
+          style={{ height: laneCount * 28 + 2 }}
+        >
+          {trimEnd > trimStart && timelineSpan > 0 && (
+            <div
+              aria-hidden="true"
+              style={{
+                left: `${Math.max(0, Math.min(100, (trimStart / timelineSpan) * 100))}%`,
+                width: `${Math.max(0, Math.min(100, ((trimEnd - trimStart) / timelineSpan) * 100))}%`,
+              }}
+              className="pointer-events-none absolute inset-y-0 bg-white/[0.03] border-x border-white/15"
+            />
+          )}
+
+          {clips.map(({ cue, left, width, lane }, i) => {
+            const isActive = activeCue?.id === cue.id;
+            return (
+              <button
+                key={`dock_${cue.id}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSeekTo(cue.start, false);
+                }}
+                title={`Line ${i + 1} (${formatSec(cue.start)}–${formatSec(cue.end)}): ${cue.text}`}
+                aria-current={isActive ? 'true' : undefined}
+                style={{ left: `${left}%`, width: `${width}%`, top: lane * 28 + 3 }}
+                className={`absolute h-6 rounded px-1.5 text-[10px] font-semibold truncate text-left border transition-colors cursor-pointer ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground border-primary z-10'
+                    : 'bg-zinc-800/90 text-zinc-200 border-zinc-700/80 hover:bg-zinc-700'
+                }`}
+              >
+                {cue.text || `Line ${i + 1}`}
+              </button>
+            );
+          })}
+
           <div
             aria-hidden="true"
-            style={{
-              left: `${Math.max(0, Math.min(100, (trimStart / timelineSpan) * 100))}%`,
-              width: `${Math.max(0, Math.min(100, ((trimEnd - trimStart) / timelineSpan) * 100))}%`,
-            }}
-            className="pointer-events-none absolute inset-y-0 bg-white/[0.03] border-x border-white/15"
+            style={{ left: `${Math.max(0, Math.min(100, (currentTime / timelineSpan) * 100))}%` }}
+            className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-white z-20"
           />
-        )}
-
-        {sorted.map((cue, i) => {
-          const leftPct = Math.max(0, Math.min(99, (cue.start / timelineSpan) * 100));
-          const widthPct = Math.max(2.5, Math.min(100 - leftPct, ((cue.end - cue.start) / timelineSpan) * 100));
-          const isActive = currentTime >= cue.start && currentTime < cue.end;
-          return (
-            <button
-              key={`dock_${cue.id}`}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSeekTo(cue.start, false);
-              }}
-              title={`Line ${i + 1} (${formatSec(cue.start)}–${formatSec(cue.end)}): ${cue.text}`}
-              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-              className={`absolute top-1 bottom-1 rounded px-1.5 text-[10px] font-semibold truncate text-left border transition-colors cursor-pointer ${
-                isActive
-                  ? 'bg-primary text-primary-foreground border-primary z-10'
-                  : 'bg-zinc-800/90 text-zinc-200 border-zinc-700/80 hover:bg-zinc-700'
-              }`}
-            >
-              {cue.text || `Line ${i + 1}`}
-            </button>
-          );
-        })}
-
-        <div
-          aria-hidden="true"
-          style={{ left: `${Math.max(0, Math.min(100, (currentTime / timelineSpan) * 100))}%` }}
-          className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-white z-20"
-        />
+        </div>
       </div>
       {videoLoaded && (
-        <Slider
-          aria-label="Playback position"
-          min={trimStart}
-          max={seekEnd}
-          step={0.05}
-          value={[Math.min(Math.max(currentTime, trimStart), seekEnd)]}
-          onValueChange={(value) => {
-            const time = Array.isArray(value) ? value[0] : value;
-            if (typeof time === 'number') onSeekTo(time, false);
-          }}
-        />
+        <PlaybackScrubber {...{ trimStart, trimEnd, duration, currentTime, onSeekTo }} />
       )}
     </section>
   );

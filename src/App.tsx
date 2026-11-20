@@ -8,6 +8,7 @@ import {
   Captions,
   Download,
   Film,
+  Maximize2,
   Palette,
   Pause,
   Play,
@@ -27,7 +28,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TopNav, VIEW_HREFS, type AppView } from './components/TopNav';
 import { StudioGallery } from './components/StudioGallery';
 import { VideoStage } from './components/VideoStage';
-import { StudioTimelineBar } from './components/StudioTimelineBar';
+import { PlaybackScrubber, StudioTimelineBar } from './components/StudioTimelineBar';
 import { CaptionsPanel, type ServerCapabilities } from './components/CaptionsPanel';
 import { StylePanel } from './components/StylePanel';
 import { ReferenceMatchPanel } from './components/ReferenceMatchPanel';
@@ -910,11 +911,15 @@ function StudioApp() {
                   />
                   {videoUrl && (
                     <div className="editor-mini-transport">
-                      <AstryxButton size="md" variant="secondary"
+                      <AstryxButton size="md" variant="secondary" isIconOnly
                         label={isPlaying ? 'Pause preview' : 'Play preview'}
                         icon={isPlaying ? <Pause size={16} /> : <Play size={16} />}
                         onClick={() => void handleTogglePlay()} />
-                      <AstryxButton size="md" variant="secondary" label="Full preview" onClick={openMobilePreview} />
+                      <div className="min-w-0 flex-1">
+                        <PlaybackScrubber {...{ trimStart, trimEnd, duration, currentTime }} onSeekTo={handleSeekTo} />
+                      </div>
+                      <AstryxButton size="md" variant="secondary" isIconOnly label="Full preview"
+                        icon={<Maximize2 size={16} />} onClick={openMobilePreview} />
                     </div>
                   )}
                   <audio
@@ -968,7 +973,6 @@ function StudioApp() {
 
                   <InspectorPanel tab="style" activeTab={inspectorTab}>
                     <StylePanel
-                      videoRef={videoRef}
                       videoUrl={videoUrl}
                       styleConfig={styleConfig}
                       previewConfig={previewStyleState?.config ?? null}

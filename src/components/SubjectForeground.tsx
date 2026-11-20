@@ -65,7 +65,7 @@ export function SubjectForeground({ videoRef, source }: {
       // Sample the model less often than we composite the live video.
       if (!video.paused) {
         paint();
-        if (now - lastSample >= 80) void sample(now);
+        if (now - lastSample >= 50) void sample(now);
       }
       frame = schedule(tick);
     };
@@ -73,14 +73,19 @@ export function SubjectForeground({ videoRef, source }: {
       lastTime = -1;
       mask?.clear();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!failed) setStatus('loading');
     };
     const updatePausedFrame = () => {
       clearFrame();
       void sample(performance.now());
     };
+    const refreshOnPause = () => {
+      if (video.currentTime !== lastTime) updatePausedFrame();
+    };
     video.addEventListener('loadeddata', updatePausedFrame);
     video.addEventListener('seeking', clearFrame);
     video.addEventListener('seeked', updatePausedFrame);
+    video.addEventListener('pause', refreshOnPause);
     void sample(performance.now());
     frame = schedule(tick);
     return () => {
@@ -90,13 +95,14 @@ export function SubjectForeground({ videoRef, source }: {
       video.removeEventListener('loadeddata', updatePausedFrame);
       video.removeEventListener('seeking', clearFrame);
       video.removeEventListener('seeked', updatePausedFrame);
+      video.removeEventListener('pause', refreshOnPause);
       void model.then(mask => mask.clear()).catch(() => {});
     };
   }, [videoRef, source]);
 
   return (
     <>
-      <canvas ref={canvasRef} className="caption-subject-foreground" aria-hidden="true" />
+      <canvas ref={canvasRef} className="caption-subject-foreground" data-mask-status={status} aria-hidden="true" />
       {status !== 'ready' && <span className="caption-subject-status" role="status">
         {status === 'loading' ? 'Loading subject mask…' : 'Subject masking is unavailable in this browser.'}
       </span>}

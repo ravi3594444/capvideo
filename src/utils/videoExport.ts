@@ -13,6 +13,7 @@ import {
   getCaptionPlacement,
   getDepthRowAppearance,
   getWordVisualSpec,
+  getWordVerticalPadding,
   isNegativeEmphasisWord,
   normalizeToken,
   resolveEffectiveEffect,
@@ -295,29 +296,32 @@ export async function exportBurnedInWebM(
             ctx.font = `${spec.fontStyle} ${spec.fontWeight} ${px}px ${spec.fontCss}`;
             const textWidth = ctx.measureText(spec.displayText).width;
             const padding = px * 0.12;
-            return { spec, px, textWidth, padding, width: textWidth + padding * 2 };
+            const width = textWidth + padding * 2;
+            const spacing = getWordVerticalPadding(width, px * 1.24, 1, spec.translateYEm * fontPx, spec.rotateDeg);
+            return { spec, px, textWidth, padding, width, above: px * .62 + spacing.above, below: px * .62 + spacing.below };
           })
           .filter((item): item is NonNullable<typeof item> => item !== null)
       );
 
       const availableWidth = safeWidth - backdropPadX * 2;
       const rows = lineSpecs.flatMap(words => {
-        const wrapped: { words: typeof words; width: number; height: number }[] = [];
+        const wrapped: { words: typeof words; width: number; above: number; below: number }[] = [];
         for (const word of words) {
           let row = wrapped[wrapped.length - 1];
           if (!row || (!foreground && row.width + wordGapPx + word.width > availableWidth)) {
-            row = { words: [], width: 0, height: 0 };
+            row = { words: [], width: 0, above: 0, below: 0 };
             wrapped.push(row);
           }
           row.width += (row.words.length ? wordGapPx : 0) + word.width;
-          row.height = Math.max(row.height, word.px * 1.24);
+          row.above = Math.max(row.above, word.above);
+          row.below = Math.max(row.below, word.below);
           row.words.push(word);
         }
         return wrapped;
       });
 
       const boxWidth = Math.max(0, ...rows.map(row => row.width)) + backdropPadX * 2;
-      const rowsHeight = rows.reduce((height, row) => height + row.height, 0) + lineGap * Math.max(0, rows.length - 1);
+      const rowsHeight = rows.reduce((height, row) => height + row.above + row.below, 0) + lineGap * Math.max(0, rows.length - 1);
       const previousHeight = prevCue ? fontPx * 1.12 : 0;
       const blockHeight = previousHeight + rowsHeight + backdropPadY * 2;
       const fit = getCaptionFit(boxWidth, blockHeight, safeWidth, safeHeight, heightScale);
@@ -354,7 +358,7 @@ export async function exportBurnedInWebM(
         let cursor = -row.width / 2;
         for (const { spec, px, textWidth, padding, width } of row.words) {
           const x = cursor + padding;
-          const y = rowTop + row.height / 2 + spec.translateYEm * fontPx;
+          const y = rowTop + row.above + spec.translateYEm * fontPx;
           ctx.save();
           ctx.globalAlpha = spec.opacity;
           if (useDifference) ctx.globalCompositeOperation = 'difference';
@@ -426,23 +430,24 @@ export async function exportBurnedInWebM(
 
           cursor += width + wordGapPx;
         }
-        rowTop += row.height + lineGap;
+        rowTop += row.above + row.below + lineGap;
       }
       ctx.restore();
     }
 
-    if (foreground && cue) {
+    if (foreground) {
       const { mask, ctx: foregroundCtx } = foreground;
       const frameTime = video.currentTime;
-      if (!maskPending && Math.abs(frameTime - lastMaskTime) >= 0.08) {
+      if (!maskPending && Math.abs(frameTime - lastMaskTime) >= 0.05) {
         lastMaskTime = frameTime;
         maskPending = true;
         void mask.update(video).catch(() => {
           failExport(new Error('Person masking failed during export. Try another browser or caption style.'));
         }).finally(() => { maskPending = false; });
       }
-      mask.drawForeground(foregroundCtx, video, width, height);
-      ctx.drawImage(foregroundCtx.canvas, 0, 0);
+      if (cue && mask.drawForeground(foregroundCtx, video, width, height)) {
+        ctx.drawImage(foregroundCtx.canvas, 0, 0);
+      }
     }
 
     const len = trimEnd - trimStart;
