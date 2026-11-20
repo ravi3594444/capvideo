@@ -415,6 +415,10 @@ textarea {
   z-index: 1;
 }
 
+:is(.workspace-media, .gallery-preview-frame):has(> .caption-subject-foreground[data-mask-status="loading"]) .st-behind-subject {
+  visibility: hidden;
+}
+
 .caption-subject-status {
   position: absolute;
   top: .5rem;

@@ -494,8 +494,8 @@
   }
   .workspace-studio[data-mobile-pane="edit"] .editor-mini-transport {
     display: flex;
-    justify-content: space-between;
-    gap: 6px;
+    align-items: center;
+    gap: 10px;
     padding: 5px 9px;
     border-top: 1px solid var(--workspace-line);
   }

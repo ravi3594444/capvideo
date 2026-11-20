@@ -25,11 +25,13 @@ import {
   getCaptionFit,
   getCaptionFontStack,
   getCaptionPlacement,
+  getCaptionTimelineLayout,
   getDepthRowAppearance,
   getCaptionContainerSpec,
   getCaptionHeadlineIndex,
   getCaptionWordRows,
   getWordVisualSpec,
+  getWordVerticalPadding,
   mergeCaptionWithNext,
   parseSrt,
   redoCaptionHistory,
@@ -503,6 +505,28 @@ test('the font picker overrides single-font styles and keeps font-switch accents
   assert.equal(getWordVisualSpec({ ...word, style: 'st-editorial' }).fontCss, getCaptionFontStack('editorial'));
   assert.equal(getWordVisualSpec({ ...word, style: 'st-font-switch', fontFamily: 'mono' }).fontCss, getCaptionFontStack('editorial'));
   assert.equal(getWordVisualSpec({ ...word, style: 'st-font-switch', fontFamily: 'mono', activeWordIndex: 1 }).fontCss, getCaptionFontStack('mono'));
+});
+
+test('timeline separates overlapping clips and selects the newest active line', () => {
+  const first = { id: 'one', start: 0.5, end: 3, text: 'First line' };
+  const second = { id: 'two', start: 1.25, end: 2, text: 'Second line' };
+  const third = { id: 'three', start: 2.5, end: 4, text: 'Third line' };
+  const short = { id: 'tail', start: 4.99, end: 5, text: 'End' };
+  const cues = [first, second, third, short];
+  const { clips, laneCount } = getCaptionTimelineLayout(cues, 5);
+  assert.equal(laneCount, 2);
+  assert.deepEqual(clips.map(clip => clip.lane), [0, 1, 1, 0]);
+  assert.equal(clips.at(-1)!.left + clips.at(-1)!.width, 100);
+  assert.equal(findActiveCaption(cues, 1.5), second);
+  assert.equal(findActiveCaption(cues, 2.2), first);
+  assert.equal(findStylePreviewCaption(cues, 2.75), third);
+});
+
+test('animated words reserve room above and below their line', () => {
+  assert.deepEqual(getWordVerticalPadding(120, 30, 1, 0, 0), { above: 0, below: 0 });
+  assert.deepEqual(getWordVerticalPadding(120, 32, 1.5, -4, 0), { above: 12, below: 4 });
+  const rotated = getWordVerticalPadding(120, 30, 1, 4, -8);
+  assert(rotated.above > 0 && rotated.below > rotated.above);
 });
 
 test('depth captions drift as a large, two-tone stack and hero motion follows a marked word', () => {

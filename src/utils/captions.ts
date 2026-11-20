@@ -1597,28 +1597,46 @@ export function captionsFromText(text: string, spanStart: number, spanEnd: numbe
 }
 
 export function findActiveCaption(captions: CaptionCue[], currentTime: number): CaptionCue | null {
-  for (let i = 0; i < captions.length; i++) {
-    const c = captions[i];
-    if (currentTime >= c.start && currentTime < c.end) {
-      return c;
-    }
+  let active: CaptionCue | null = null;
+  for (const cue of captions) {
+    if (currentTime >= cue.start && currentTime < cue.end && (!active || cue.start > active.start)) active = cue;
   }
-  return null;
+  return active;
 }
 
 export function findStylePreviewCaption(captions: CaptionCue[], currentTime: number): CaptionCue {
   let closest = STYLE_PREVIEW_SAMPLE;
   let closestDistance = Infinity;
+  let active: CaptionCue | undefined;
   for (const cue of captions) {
     if (!cue.text.trim()) continue;
-    if (currentTime >= cue.start && currentTime < cue.end) return cue;
+    if (currentTime >= cue.start && currentTime < cue.end && (!active || cue.start > active.start)) active = cue;
     const distance = Math.max(cue.start - currentTime, currentTime - cue.end, 0);
     if (distance < closestDistance) {
       closest = cue;
       closestDistance = distance;
     }
   }
-  return closest;
+  return active ?? closest;
+}
+
+export function getCaptionTimelineLayout(sortedCues: CaptionCue[], timelineSpan: number) {
+  const laneEnds: number[] = [];
+  const clips = sortedCues.map(cue => {
+    const left = Math.max(0, Math.min(99, cue.start / timelineSpan * 100));
+    const width = Math.min(100 - left, Math.max(2.5, (cue.end - cue.start) / timelineSpan * 100));
+    const availableLane = laneEnds.findIndex(end => end <= left + 0.001);
+    const lane = availableLane === -1 ? laneEnds.length : availableLane;
+    laneEnds[lane] = left + width;
+    return { cue, left, width, lane };
+  });
+  return { clips, laneCount: Math.max(1, laneEnds.length) };
+}
+
+export function getWordVerticalPadding(width: number, height: number, scale: number, offsetY: number, rotation: number) {
+  const rotatedHeight = Math.abs(Math.sin(rotation * Math.PI / 180)) * width;
+  const extension = (Math.max(0, scale - 1) * height + rotatedHeight * scale) / 2;
+  return { above: Math.max(0, extension - offsetY), below: Math.max(0, extension + offsetY) };
 }
 
 export function findPreviousCaption(captions: CaptionCue[], activeCue: CaptionCue | null): CaptionCue | null {
