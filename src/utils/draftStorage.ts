@@ -1,6 +1,8 @@
 import {
   CAPTION_FONT_OPTIONS,
   CAPTION_STYLE_CATALOG,
+  clampTextHeight,
+  clampVerticalPosition,
   clampWordSpacing,
   DEFAULT_STYLE_CONFIG,
   ENTRANCE_EFFECT_OPTIONS,
@@ -107,6 +109,8 @@ export function parseStudioDraft(raw: string | null): StudioDraft | null {
         rawStyle && typeof rawStyle.fontSize === 'number' && Number.isFinite(rawStyle.fontSize)
           ? Math.min(38, Math.max(14, Math.round(rawStyle.fontSize)))
           : DEFAULT_STYLE_CONFIG.fontSize,
+      textHeight: clampTextHeight(rawStyle?.textHeight),
+      verticalPosition: clampVerticalPosition(rawStyle?.verticalPosition),
       wordSpacing:
         rawStyle && typeof rawStyle.wordSpacing === 'number' && Number.isFinite(rawStyle.wordSpacing)
           ? clampWordSpacing(rawStyle.wordSpacing)

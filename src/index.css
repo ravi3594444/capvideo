@@ -128,17 +128,15 @@
   pointer-events: auto;
 }
 
-.cap-overlay.pos-bottom { bottom: 6%; }
-.cap-overlay.pos-third { bottom: 26%; }
-.cap-overlay.pos-centre { top: 50%; transform: translateY(-50%); }
-
 .cap-content {
   display: block;
-  transform: translateX(var(--caption-shift, 0%)) scale(calc(var(--caption-fit, 1) * var(--caption-block-scale, 1)));
-  transform-origin: center bottom;
+  transform: translateX(var(--caption-shift, 0%)) scale(
+    calc(var(--caption-fit-x, 1) * var(--caption-block-scale, 1)),
+    calc(var(--caption-fit-y, 1) * var(--caption-block-scale, 1))
+  );
+  transform-origin: center var(--caption-origin, 100%);
 }
 
-.pos-centre .cap-content { transform-origin: center; }
 .cap-previous { margin-bottom: .21em; font-size: .76em; }
 
 .cap-rows {

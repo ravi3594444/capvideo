@@ -54,6 +54,8 @@ export interface StyleConfig {
   position: CaptionPosition;
   accentColor: string;
   fontSize: number;
+  textHeight?: number;
+  verticalPosition?: number;
   wordSpacing?: number;
   revealMode?: RevealMode;
   effect?: EntranceEffect;
@@ -61,6 +63,39 @@ export interface StyleConfig {
   pageLayout?: PageLayoutMode;
   spotlightAuto?: boolean;
   blendMode?: CaptionBlendMode;
+}
+
+export const TEXT_HEIGHT = { min: 60, max: 180, normal: 100 };
+
+export function clampTextHeight(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.round(Math.min(TEXT_HEIGHT.max, Math.max(TEXT_HEIGHT.min, value)))
+    : TEXT_HEIGHT.normal;
+}
+
+export function clampVerticalPosition(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.round(Math.min(100, Math.max(0, value)))
+    : undefined;
+}
+
+export function getCaptionPlacement(config: Pick<StyleConfig, 'position' | 'verticalPosition'>) {
+  const verticalPosition = clampVerticalPosition(config.verticalPosition);
+  if (verticalPosition !== undefined) {
+    const origin = verticalPosition / 100;
+    return { anchor: 0.06 + 0.88 * origin, origin, safeHeight: 0.88 };
+  }
+  if (config.position === 'pos-centre') return { anchor: 0.5, origin: 0.5, safeHeight: 0.92 };
+  if (config.position === 'pos-third') return { anchor: 0.74, origin: 1, safeHeight: 0.72 };
+  return { anchor: 0.94, origin: 1, safeHeight: 0.92 };
+}
+
+export function getCaptionFit(
+  contentWidth: number, contentHeight: number, safeWidth: number, safeHeight: number, heightScale: number,
+) {
+  const heightFit = safeHeight / Math.max(1, contentHeight);
+  const x = Math.min(1, safeWidth / Math.max(1, contentWidth), heightFit);
+  return { x, y: Math.min(x * heightScale, heightFit) };
 }
 
 export function clampWordSpacing(val: unknown): number {
@@ -542,7 +577,7 @@ export function getCaptionBlockMotion(
 
   const cueProgress = Math.max(0, Math.min(1, (time - cue.start) / Math.max(0.1, cue.end - cue.start)));
   if (style === 'st-behind-subject') {
-    return { fontScale: 1.95, blockScale: 1, shift: 0.09 * (1 - 2 * cueProgress) };
+    return { fontScale: 1.95, blockScale: 1, shift: 0.05 * (1 - 2 * cueProgress) };
   }
 
   const words = cue.text.trim().split(/\s+/);

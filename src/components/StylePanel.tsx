@@ -17,10 +17,13 @@ import { Switch } from '@/components/ui/switch';
 import {
   CAPTION_FONT_OPTIONS,
   CAPTION_STYLE_CATALOG,
+  clampTextHeight,
+  clampVerticalPosition,
   clampWordSpacing,
   CURATED_PRESET_PACKS,
   ENTRANCE_EFFECT_OPTIONS,
   REVEAL_MODE_OPTIONS,
+  TEXT_HEIGHT,
   resolveEffectiveEffect,
   resolveEffectiveReveal,
   type CaptionBlendMode,
@@ -245,6 +248,9 @@ export function StylePanel({
   const videoFrame = useVideoFrame(videoRef, videoUrl);
 
   const displayedConfig = previewConfig ?? styleConfig;
+  const textHeight = clampTextHeight(styleConfig.textHeight);
+  const customPosition = clampVerticalPosition(styleConfig.verticalPosition);
+  const presetPosition = styleConfig.position === 'pos-centre' ? 50 : styleConfig.position === 'pos-third' ? 75 : 100;
   const activeFontMeta =
     CAPTION_FONT_OPTIONS.find((f) => f.id === displayedConfig.fontFamily) ?? CAPTION_FONT_OPTIONS[0];
   const effectiveReveal = resolveEffectiveReveal(displayedConfig);
@@ -443,7 +449,11 @@ export function StylePanel({
                 resolveEffectiveReveal(styleConfig) === (pack.apply.revealMode ?? resolveEffectiveReveal(styleConfig)) &&
                 resolveEffectiveEffect(styleConfig) === (pack.apply.effect ?? resolveEffectiveEffect(styleConfig)) &&
                 (styleConfig.blendMode ?? 'normal') === (pack.apply.blendMode ?? 'normal');
-              const candidate = { ...styleConfig, ...pack.apply };
+              const candidate = {
+                ...styleConfig,
+                ...pack.apply,
+                verticalPosition: pack.apply.position ? undefined : customPosition,
+              };
               return (
                 <button
                   key={pack.id}
@@ -524,7 +534,6 @@ export function StylePanel({
 
       <Separator />
 
-      {/* Size, Word Spacing & Typography */}
       <div className="space-y-3.5">
         <div className="grid grid-cols-1 @md/style:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -547,6 +556,25 @@ export function StylePanel({
                   onChange({ ...styleConfig, fontSize: next });
                 }
               }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-text-height">Text height</Label>
+              <span className="font-mono text-muted-foreground tabular-nums">{textHeight}%</span>
+            </div>
+            <Slider
+              id="caption-text-height"
+              aria-label="Text height"
+              getAriaValueText={(_, value) => `${value}% tall`}
+              min={TEXT_HEIGHT.min}
+              max={TEXT_HEIGHT.max}
+              step={5}
+              value={[textHeight]}
+              onValueChange={(value) => onChange({
+                ...styleConfig, textHeight: clampTextHeight(typeof value === 'number' ? value : value[0]),
+              })}
             />
           </div>
 
@@ -585,6 +613,25 @@ export function StylePanel({
               }}
             />
           </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <Label htmlFor="caption-vertical-position">Vertical position</Label>
+              <span className="font-mono text-muted-foreground tabular-nums">{customPosition ?? presetPosition}%</span>
+            </div>
+            <Slider
+              id="caption-vertical-position"
+              aria-label="Vertical position"
+              getAriaValueText={(_, value) => `${value}% down the frame`}
+              min={0}
+              max={100}
+              step={1}
+              value={[customPosition ?? presetPosition]}
+              onValueChange={(value) => onChange({
+                ...styleConfig, verticalPosition: clampVerticalPosition(typeof value === 'number' ? value : value[0]),
+              })}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 @sm/style:grid-cols-3 gap-3">
@@ -592,17 +639,17 @@ export function StylePanel({
             <span className="block text-xs font-semibold text-foreground">Position</span>
             <div
               role="group"
-              aria-label="Vertical position"
+              aria-label="Position presets"
               className="grid grid-cols-3 rounded-lg bg-muted/70 p-0.5 border border-border"
             >
               {POSITION_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
-                  aria-pressed={styleConfig.position === opt.value}
-                  onClick={() => onChange({ ...styleConfig, position: opt.value })}
+                  aria-pressed={customPosition === undefined && styleConfig.position === opt.value}
+                  onClick={() => onChange({ ...styleConfig, position: opt.value, verticalPosition: undefined })}
                   className={`cap-word-chip py-1.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                    styleConfig.position === opt.value
+                    customPosition === undefined && styleConfig.position === opt.value
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
