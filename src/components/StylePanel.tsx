@@ -23,6 +23,7 @@ import {
   CURATED_PRESET_PACKS,
   ENTRANCE_EFFECT_OPTIONS,
   REVEAL_MODE_OPTIONS,
+  STYLE_PREVIEW_SAMPLE,
   TEXT_HEIGHT,
   resolveEffectiveEffect,
   resolveEffectiveReveal,
@@ -68,13 +69,6 @@ const POSITION_OPTIONS: { value: CaptionPosition; label: string }[] = [
   { value: 'pos-third', label: 'Lower third' },
   { value: 'pos-centre', label: 'Centre' },
 ];
-
-const FALLBACK_PREVIEW_CUE: CaptionCue = {
-  id: 'preview_demo',
-  start: 0,
-  end: 2.0,
-  text: 'Stop scrolling right now',
-};
 
 function renderStyleSpecimen(styleId: string, accent: string, baseFontCss: string) {
   switch (styleId) {
@@ -270,7 +264,7 @@ export function StylePanel({
     return () => window.clearInterval(timer);
   }, [animating]);
 
-  const cueForPreview = sampleCue && sampleCue.text.trim() ? sampleCue : FALLBACK_PREVIEW_CUE;
+  const cueForPreview = sampleCue ?? STYLE_PREVIEW_SAMPLE;
   const previewCue = {
     ...cueForPreview,
     text: cueForPreview.text.trim().split(/\s+/).slice(0, 6).join(' '),
@@ -671,7 +665,7 @@ export function StylePanel({
               }}
             >
               <SelectTrigger id="caption-font-trigger" className="w-full h-9 bg-background text-xs">
-                <SelectValue>{activeFontMeta.label}</SelectValue>
+                <SelectValue>{CAPTION_FONT_OPTIONS.find((font) => font.id === styleConfig.fontFamily)?.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {CAPTION_FONT_OPTIONS.map((font) => (

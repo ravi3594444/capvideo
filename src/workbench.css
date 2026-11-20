@@ -271,7 +271,7 @@
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1.52fr) minmax(320px, 1fr);
+  grid-template-columns: 82px minmax(0, 1.65fr) minmax(320px, 1fr);
   grid-template-areas: "tools preview inspector" "tools timeline inspector";
   grid-template-rows: minmax(0, 1fr) auto;
   min-height: min(720px, calc(100svh - 154px));
@@ -490,7 +490,7 @@
   .workspace-studio[data-mobile-pane="edit"] .workspace-media {
     width: auto;
     max-width: 100%;
-    height: min(24svh, 160px);
+    height: min(27svh, 200px);
   }
   .workspace-studio[data-mobile-pane="edit"] .editor-mini-transport {
     display: flex;

@@ -48,6 +48,13 @@ export interface CaptionCue {
   wordTiming?: WordTokenTimed[];
 }
 
+export const STYLE_PREVIEW_SAMPLE: CaptionCue = {
+  id: 'preview_demo',
+  start: 0,
+  end: 2,
+  text: 'Make every word count',
+};
+
 export interface StyleConfig {
   style: CaptionStyle;
   fontFamily: CaptionFont;
@@ -981,7 +988,7 @@ export function getWordVisualSpec(opts: {
 }): WordVisualSpec {
   const {
     style,
-    fontFamily = 'manrope',
+    fontFamily,
     word,
     wordIndex,
     activeWordIndex,
@@ -1005,7 +1012,7 @@ export function getWordVisualSpec(opts: {
   const isPast = wordIndex < activeWordIndex;
   const isFuture = wordIndex > activeWordIndex;
 
-  const baseFont = getCaptionFontStack(fontFamily);
+  const baseFont = getCaptionFontStack(fontFamily ?? CAPTION_STYLE_CATALOG.find(entry => entry.id === style)?.defaultFont);
   const serifFont = '"Playfair Display", Georgia, serif';
   const impactFont = '"Oswald", Impact, sans-serif';
   const monoFont = '"JetBrains Mono", ui-monospace, monospace';
@@ -1048,7 +1055,7 @@ export function getWordVisualSpec(opts: {
     case 'st-editorial':
       spec = {
         displayText: word,
-        fontCss: serifFont,
+        fontCss: baseFont,
         fontWeight: 700,
         fontStyle: isOn || isSpotlightKey ? 'italic' : 'normal',
         color: isOn || isSpotlightKey ? accentColor : '#ffffff',
@@ -1132,7 +1139,7 @@ export function getWordVisualSpec(opts: {
     case 'st-typewriter':
       spec = {
         displayText: word,
-        fontCss: monoFont,
+        fontCss: baseFont,
         fontWeight: isOn ? 700 : 500,
         fontStyle: 'normal',
         color: isOn || isSpotlightKey ? accentColor : '#ffffff',
@@ -1148,7 +1155,7 @@ export function getWordVisualSpec(opts: {
     case 'st-hormozi':
       spec = {
         displayText: word.toUpperCase(),
-        fontCss: impactFont,
+        fontCss: baseFont,
         fontWeight: 700,
         fontStyle: 'normal',
         color: isOn && isSpotlightKey ? accentColor : '#ffffff',
@@ -1265,7 +1272,7 @@ export function getWordVisualSpec(opts: {
   }
 
   if (usesHeadlineLayout(style, effect)) {
-    spec.fontCss = style === 'st-minimal' ? baseFont : impactFont;
+    spec.fontCss = style === 'st-font-snap' && isHeadlineWord ? impactFont : baseFont;
     spec.fontWeight = isHeadlineWord ? 800 : 600;
     spec.fontStyle = 'normal';
     spec.color = isHeadlineWord ? accentColor : '#ffffff';
@@ -1597,6 +1604,21 @@ export function findActiveCaption(captions: CaptionCue[], currentTime: number): 
     }
   }
   return null;
+}
+
+export function findStylePreviewCaption(captions: CaptionCue[], currentTime: number): CaptionCue {
+  let closest = STYLE_PREVIEW_SAMPLE;
+  let closestDistance = Infinity;
+  for (const cue of captions) {
+    if (!cue.text.trim()) continue;
+    if (currentTime >= cue.start && currentTime < cue.end) return cue;
+    const distance = Math.max(cue.start - currentTime, currentTime - cue.end, 0);
+    if (distance < closestDistance) {
+      closest = cue;
+      closestDistance = distance;
+    }
+  }
+  return closest;
 }
 
 export function findPreviousCaption(captions: CaptionCue[], activeCue: CaptionCue | null): CaptionCue | null {
